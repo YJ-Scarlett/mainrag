@@ -165,10 +165,81 @@ const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','
 const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);return pathRole===role&&slugPage[slug]?slugPage[slug]:'dashboard'}
-function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><div className="content">{page==='dashboard'?<Dashboard role={user.role} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}</div></main></div>}
+function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><div className="content">{page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}</div></main></div>}
 
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
-function Dashboard({role,go}){const [data,setData]=useState(null);useEffect(()=>{request(role==='teacher'?'/analysis/class':'/analysis/student').then(setData)},[role]);const s=data?.summary||{};return <><section className="welcome"><div><span className="eyebrow"><Sparkles size={14}/>{role==='teacher'?'智能教学助手':'今日学习建议'}</span><h1>{role==='teacher'?'下午好，陈老师':'下午好，张同学'} 👋</h1><p>{role==='teacher'?'班级整体表现平稳，建议重点关注薄弱知识点。':'保持好奇，今天也从一个好问题开始吧。'}</p></div><button className="primary" onClick={()=>go('chat')}><MessageCircle/>开始问答</button></section><div className="stats"><Stat icon={role==='teacher'?Users:ChartNoAxesCombined} label={role==='teacher'?'参与学生':'平均掌握度'} value={role==='teacher'?(data?.students?.length||0)+' 人':(s.average||0)+'%'} detail="较上周稳步提升" tone="blue"/><Stat icon={MessageCircle} label="问答次数" value={s.questions||0} detail="智能体已记录" tone="violet"/><Stat icon={Database} label="知识资料" value={s.documents||0} detail="已建立检索索引" tone="green"/><Stat icon={BookOpen} label="学习记录" value={s.activities||0} detail="持续积累中" tone="orange"/></div><div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-head"><div><h3>{role==='teacher'?'班级学习趋势':'近期学习表现'}</h3><p>学习活动得分变化</p></div></div><div className="chart"><ResponsiveContainer><AreaChart data={data?.trend||[]}><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#5577ee" stopOpacity=".3"/><stop offset="1" stopColor="#5577ee" stopOpacity="0"/></linearGradient></defs><CartesianGrid stroke="#eef1f7" vertical={false}/><XAxis dataKey="date" axisLine={false} tickLine={false}/><YAxis domain={[0,100]} axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="score" stroke="#5577ee" strokeWidth={3} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div></section><section className="panel quick"><div className="panel-head"><div><h3>快捷入口</h3><p>继续你的工作</p></div></div>{(role==='teacher'?[['knowledge','上传课程资料',Upload,'让智能体掌握新内容'],['analysis','查看班级学情',ChartNoAxesCombined,'定位班级薄弱点'],['chat','体验智能问答',Bot,'检验知识库效果']]:[['chat','向智能体提问',Bot,'获得基于课程的解答'],['chat','检索并询问知识',Search,'从课程资料中获得答案'],['analysis','查看我的学情',ChartNoAxesCombined,'了解优势与不足']]).map(([p,t,I,d])=><button onClick={()=>go(p)} key={p}><i><I/></i><span><b>{t}</b><small>{d}</small></span><ChevronRight/></button>)}</section></div></>}
+function Dashboard({user, go}) {
+  const role = user.role;
+  const [data, setData] = useState(null);
+  
+  useEffect(() => {
+    request(role === 'teacher' ? '/analysis/class' : '/analysis/student')
+      .then(setData);
+  }, [role]);
+  
+  const s = data?.summary || {};
+  
+  return (
+    <>
+      <section className="welcome">
+        <div>
+          <span className="eyebrow"><Sparkles size={14}/>{role === 'teacher' ? '智能教学助手' : '今日学习建议'}</span>
+          <h1>下午好，{user.name} 👋</h1>
+          <p>{role === 'teacher' ? '班级整体表现平稳，建议重点关注薄弱知识点。' : '保持好奇，今天也从一个好问题开始吧。'}</p>
+        </div>
+        <button className="primary" onClick={() => go('chat')}><MessageCircle/>开始问答</button>
+      </section>
+      <div className="stats">
+        <Stat icon={role === 'teacher' ? Users : ChartNoAxesCombined} 
+              label={role === 'teacher' ? '参与学生' : '平均掌握度'} 
+              value={role === 'teacher' ? (data?.students?.length || 0) + ' 人' : (s.average || 0) + '%'} 
+              detail="较上周稳步提升" tone="blue"/>
+        <Stat icon={MessageCircle} label="问答次数" value={s.questions || 0} detail="智能体已记录" tone="violet"/>
+        <Stat icon={Database} label="知识资料" value={s.documents || 0} detail="已建立检索索引" tone="green"/>
+        <Stat icon={BookOpen} label="学习记录" value={s.activities || 0} detail="持续积累中" tone="orange"/>
+      </div>
+      <div className="dashboard-grid">
+        <section className="panel chart-panel">
+          <div className="panel-head">
+            <div><h3>{role === 'teacher' ? '班级学习趋势' : '近期学习表现'}</h3><p>学习活动得分变化</p></div>
+          </div>
+          <div className="chart">
+            <ResponsiveContainer>
+              <AreaChart data={data?.trend || []}>
+                <defs>
+                  <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#5577ee" stopOpacity=".3"/>
+                    <stop offset="1" stopColor="#5577ee" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#eef1f7" vertical={false}/>
+                <XAxis dataKey="date" axisLine={false} tickLine={false}/>
+                <YAxis domain={[0,100]} axisLine={false} tickLine={false}/>
+                <Tooltip/>
+                <Area type="monotone" dataKey="score" stroke="#5577ee" strokeWidth={3} fill="url(#fill)"/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+        <section className="panel quick">
+          <div className="panel-head">
+            <div><h3>快捷入口</h3><p>继续你的工作</p></div>
+          </div>
+          {(role === 'teacher' 
+            ? [['knowledge','上传课程资料',Upload,'让智能体掌握新内容'],['analysis','查看班级学情',ChartNoAxesCombined,'定位班级薄弱点'],['chat','体验智能问答',Bot,'检验知识库效果']]
+            : [['chat','向智能体提问',Bot,'获得基于课程的解答'],['chat','检索并询问知识',Search,'从课程资料中获得答案'],['analysis','查看我的学情',ChartNoAxesCombined,'了解优势与不足']]
+          ).map(([p,t,I,d]) => (
+            <button onClick={() => go(p)} key={p}>
+              <i><I/></i>
+              <span><b>{t}</b><small>{d}</small></span>
+              <ChevronRight/>
+            </button>
+          ))}
+        </section>
+      </div>
+    </>
+  );
+}
 
 function Chat({user}){const [messages,setMessages]=useState([{role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`}]),[input,setInput]=useState(''),[loading,setLoading]=useState(false);const send=async(q=input)=>{if(!q.trim()||loading)return;setMessages(m=>[...m,{role:'user',text:q}]);setInput('');setLoading(true);try{const d=await post('/chat',{message:q,student:user.name});setMessages(m=>[...m,{role:'ai',text:d.answer,sources:d.sources}])}catch(e){setMessages(m=>[...m,{role:'ai',text:e.message}])}finally{setLoading(false)}};return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className="bubble">{m.text}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><span key={j}>{s.document} · 片段 {s.chunk}<em>{Math.round(s.score*100)}%</em></span>)}</div>}</div></div>)}{loading&&<div className="message ai"><div className="avatar"><Sparkles/></div><div className="bubble typing"><i/><i/><i/></div></div>}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()}><Send/></button></div><small>回答由课程知识库生成，请结合课堂内容判断</small></div></section><aside className="suggestions"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}<div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>}
 
