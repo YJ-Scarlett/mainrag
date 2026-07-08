@@ -13,8 +13,8 @@ router = APIRouter()
 
 @router.post("/chat")
 async def chat(body: ChatRequest):
-    references = retrieve(body.message, 3)
-    if not references or references[0]["score"] <= .4:
+    references = await retrieve(body.message, 3)
+    if not references or references[0]["score"] <= .2:
         answer = "知识库里暂时没有足够直接的材料。请换一种问法，或请教师补充相关课程资料。"
     else:
         answer = await generate_answer(body.message, references)

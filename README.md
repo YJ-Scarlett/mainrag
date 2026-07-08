@@ -68,6 +68,12 @@ cd E:\project\mainrag\backend
 $env:DEEPSEEK_API_KEY="在终端中粘贴你的真实密钥"
 $env:DEEPSEEK_BASE_URL="https://api.deepseek.com"
 $env:DEEPSEEK_MODEL="deepseek-chat"
+
+# Embedding 使用本地 BGE-M3，不需要设置 embedding 密钥。
+# 第一次上传或重建索引时会自动下载模型到 backend/models。
+# 如需切换模型或指定设备，可选设置：
+$env:LOCAL_EMBEDDING_MODEL="BAAI/bge-m3"
+$env:EMBEDDING_DEVICE="cpu"
 ```
 
 密钥只存在于当前 PowerShell 进程及其启动的后端进程中。关闭终端后会自动失效。不要把真实密钥写入 README、源码、命令脚本或聊天内容中。
