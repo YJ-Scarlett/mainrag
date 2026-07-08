@@ -9,10 +9,156 @@ async function request(path, options={}) { let role='';try{role=JSON.parse(local
 const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 function Login({onLogin}) {
-  const [role,setRole]=useState('student'), [form,setForm]=useState({username:'student',password:'123456'}), [error,setError]=useState(''), [loading,setLoading]=useState(false);
-  const switchRole=r=>{setRole(r);setForm({username:r,password:'123456'});setError('')};
-  const submit=async e=>{e.preventDefault();setLoading(true);try{const d=await post('/login',{...form,role});localStorage.setItem('mainrag-user',JSON.stringify(d.user));history.replaceState({},'',`/${role}/home`);onLogin(d.user)}catch(e){setError(e.message)}finally{setLoading(false)}};
-  return <div className="login-page"><div className="login-brand"><div className="brand-mark"><GraduationCap/></div><div><b>知问课堂</b><span>轻量教学智能体</span></div></div><div className="login-copy"><span className="eyebrow"><Sparkles size={15}/> AI 驱动的个性化学习</span><h1>让每一次提问<br/>都成为<span>成长的起点</span></h1><p>连接课程知识与学习过程，为教师提供洞察，为学生提供随时可用的智能辅导。</p><div className="feature-row"><i><Database/><span>课程知识库<small>统一沉淀教学资料</small></span></i><i><Bot/><span>智能问答<small>答案有据可循</small></span></i><i><ChartNoAxesCombined/><span>学情洞察<small>看见每一步成长</small></span></i></div></div><form className="login-card" onSubmit={submit}><div className="mobile-logo"><GraduationCap/> 知问课堂</div><h2>欢迎回来</h2><p>选择你的身份，开始今天的学习旅程</p><div className="role-tabs"><button type="button" className={role==='student'?'active':''} onClick={()=>switchRole('student')}><GraduationCap/>学生端</button><button type="button" className={role==='teacher'?'active':''} onClick={()=>switchRole('teacher')}><Users/>教师端</button></div><label>账号<input value={form.username} onChange={e=>setForm({...form,username:e.target.value})}/></label><label>密码<input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label>{error&&<div className="error">{error}</div>}<button className="primary login-btn" disabled={loading}>{loading?'正在登录…':'进入知问课堂'}<ChevronRight size={18}/></button><small className="hint">演示账号：{role} / 123456</small></form></div>
+  const [role,setRole]=useState('student');
+  const [form,setForm]=useState({username:'student',password:'123456'});
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [mode, setMode] = useState('login'); // 'login' 或 'register'
+  const [registerForm, setRegisterForm] = useState({
+    username: '',
+    password: '',
+    confirm: '',
+    name: '',
+    role: 'student'
+  });
+
+  const switchRole = (r) => {
+    setRole(r);
+    if (mode === 'login') {
+      setForm({...form, username: r === 'student' ? 'student' : 'teacher', password: '123456'});
+    } else {
+      setRegisterForm({...registerForm, role: r});
+    }
+    setError('');
+  };
+
+  const switchMode = (m) => {
+    setMode(m);
+    setError('');
+    // 切换到登录时，填充演示账号
+    if (m === 'login') {
+      setForm({username: role === 'student' ? 'student' : 'teacher', password: '123456'});
+    } else {
+      setRegisterForm({username: '', password: '', confirm: '', name: '', role: role});
+    }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const d = await post('/login', {...form, role});
+      localStorage.setItem('mainrag-user', JSON.stringify(d.user));
+      history.replaceState({}, '', `/${role}/home`);
+      onLogin(d.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (registerForm.password !== registerForm.confirm) {
+      setError('两次密码输入不一致');
+      return;
+    }
+    if (!registerForm.username || !registerForm.password || !registerForm.name) {
+      setError('请填写完整信息');
+      return;
+    }
+    setLoading(true);
+    try {
+      await post('/register', {
+        username: registerForm.username,
+        password: registerForm.password,
+        role: registerForm.role,
+        name: registerForm.name
+      });
+      // 注册成功，自动切换到登录并填入账号
+      setMode('login');
+      setForm({username: registerForm.username, password: registerForm.password});
+      setError('注册成功，请登录');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-brand">
+        <div className="brand-mark"><GraduationCap/></div>
+        <div><b>知问课堂</b><span>轻量教学智能体</span></div>
+      </div>
+      <div className="login-copy">
+        <span className="eyebrow"><Sparkles size={15}/> AI 驱动的个性化学习</span>
+        <h1>让每一次提问<br/>都成为<span>成长的起点</span></h1>
+        <p>连接课程知识与学习过程，为教师提供洞察，为学生提供随时可用的智能辅导。</p>
+        <div className="feature-row">
+          <i><Database/><span>课程知识库<small>统一沉淀教学资料</small></span></i>
+          <i><Bot/><span>智能问答<small>答案有据可循</small></span></i>
+          <i><ChartNoAxesCombined/><span>学情洞察<small>看见每一步成长</small></span></i>
+        </div>
+      </div>
+      <form className="login-card" onSubmit={mode === 'login' ? submit : handleRegister}>
+        <div className="mobile-logo"><GraduationCap/> 知问课堂</div>
+        <h2>{mode === 'login' ? '欢迎回来' : '创建账号'}</h2>
+        <p>{mode === 'login' ? '选择你的身份，开始今天的学习旅程' : '注册后即可使用知问课堂'}</p>
+
+        {/* 登录/注册切换 */}
+        <div className="role-tabs" style={{ marginBottom: '12px' }}>
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
+        </div>
+
+        {/* 角色选择 */}
+        <div className="role-tabs" style={{ marginBottom: '12px' }}>
+          <button type="button" className={role === 'student' ? 'active' : ''} onClick={() => switchRole('student')}><GraduationCap/>学生端</button>
+          <button type="button" className={role === 'teacher' ? 'active' : ''} onClick={() => switchRole('teacher')}><Users/>教师端</button>
+        </div>
+
+        {mode === 'login' ? (
+          <>
+            <label>账号
+              <input value={form.username} onChange={e => setForm({...form, username: e.target.value})} />
+            </label>
+            <label>密码
+              <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+            </label>
+            <button className="primary login-btn" disabled={loading}>
+              {loading ? '正在登录…' : '进入知问课堂'}
+              <ChevronRight size={18}/>
+            </button>
+            <small className="hint">演示账号：{role} / 123456</small>
+          </>
+        ) : (
+          <>
+            <label>真实姓名
+              <input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="请输入您的姓名" />
+            </label>
+            <label>用户名
+              <input value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value})} placeholder="用于登录的账号" />
+            </label>
+            <label>密码
+              <input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="至少6位" />
+            </label>
+            <label>确认密码
+              <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({...registerForm, confirm: e.target.value})} placeholder="再次输入密码" />
+            </label>
+            <button className="primary login-btn" disabled={loading}>
+              {loading ? '注册中…' : '注册新账号'}
+              <ChevronRight size={18}/>
+            </button>
+          </>
+        )}
+
+        {error && <div className="error">{error}</div>}
+      </form>
+    </div>
+  );
 }
 
 const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
