@@ -1,6 +1,17 @@
 {
   "documents": [
     {
+      "id": "b70c30e3ef",
+      "name": "软件项目管理",
+      "type": "课程资料",
+      "size": 15.0,
+      "created_at": "2026-07-07 16:41",
+      "content": "软件项目管理 – 架构与知识点概述\n一、项目管理架构\n软件项目管理遵循 PMBOK（项目管理知识体系）框架，包含五大过程组和十大知识领域。\n五大过程组：启动、规划、执行、监控、收尾。\n十大知识领域：范围、时间、成本、质量、人力资源、沟通、风险、采购、干系人、整合管理。\n二、常用开发模型\n1. 瀑布模型（Waterfall）\n- 线性顺序，阶段严格划分：需求→设计→编码→测试→部署。\n- 优点：文档齐全，阶段清晰；缺点：变更困难，适合需求稳定的项目。\n2. 敏捷模型（Agile）\n- 迭代增量，快速响应变化，代表方法有 Scrum、XP。\n- Scrum 核心角色：产品负责人、Scrum Master、开发团队。\n- 工件：产品待办列表、Sprint 待办列表、增量。\n- 事件：Sprint 计划会、每日站会、Sprint 评审会、回顾会。\n3. 混合模型（Hybrid）\n- 融合瀑布的计划性与敏捷的灵活性，常用于大型企业项目。\n三、关键管理活动\n- 范围管理：WBS（工作分解结构）分解。\n- 进度管理：甘特图、关键路径法（CPM）。\n- 风险管理：风险识别、定性/定量分析、应对策略。\n- 质量管理：质量计划、质量保证、质量控制（PDCA循环）。\n四、架构设计要点\n- 分层架构（表示层、业务层、数据层）。\n- 微服务 vs 单体架构，根据团队规模和业务复杂度选择。\n- DevOps 文化：持续集成/持续交付（CI/CD），自动化测试与部署。\n五、常见工具与技术\n- 项目计划：Jira、Trello、Microsoft Project。\n- 版本控制：Git、SVN。\n- 文档协作：Confluence、SharePoint。\n六、总结\n软件项目管理是确保项目按时、按质、按预算交付的系统性工作，合理选择开发模型和架构，结合有效工具，是项目成功的关键。",
+      "extension": "DOCX",
+      "stored_path": "e595cae1137e482c89c00f2bbe12bee6.docx",
+      "preview_path": "e595cae1137e482c89c00f2bbe12bee6-preview.pdf"
+    },
+    {
       "id": "8eafac7034",
       "name": "2-1",
       "type": "课程资料",
@@ -97,9 +108,110 @@
       "question": "编译有哪些阶段，每个阶段的输入输出是什么",
       "topic": "2-1",
       "at": "2026-07-06T16:26:59"
+    },
+    {
+      "student": "张同学",
+      "question": "TCP 如何保证可靠传输？",
+      "topic": "计算机网络基础",
+      "at": "2026-07-07T10:17:44"
+    },
+    {
+      "student": "陈老师",
+      "question": "TCP 如何保证可靠传输？",
+      "topic": "计算机网络基础",
+      "at": "2026-07-07T16:48:04"
+    },
+    {
+      "student": "陈老师",
+      "question": "TCP 如何保证可靠传输？",
+      "topic": "计算机网络基础",
+      "at": "2026-07-07T16:48:08"
     }
   ],
   "exams": [
+    {
+      "id": "54e0578fc0",
+      "title": "软件项目管理 · 全文练习",
+      "document_id": "b70c30e3ef",
+      "document_name": "软件项目管理",
+      "chapter": "全文",
+      "difficulty": "简单",
+      "status": "published",
+      "created_at": "2026-07-07 16:42",
+      "questions": [
+        {
+          "id": "3a46e55dd3",
+          "type": "choice",
+          "question": "软件项目管理遵循的PMBOK框架中包含多少个知识领域？",
+          "options": [
+            "A. 五个",
+            "B. 八个",
+            "C. 十个",
+            "D. 十二个"
+          ],
+          "answer": "C",
+          "analysis": "根据课程资料，PMBOK框架包含五大过程组和十大知识领域。",
+          "knowledge_point": "项目管理架构",
+          "score": 10
+        },
+        {
+          "id": "024307c0b4",
+          "type": "choice",
+          "question": "以下哪个开发模型适合需求稳定的项目？",
+          "options": [
+            "A. 瀑布模型",
+            "B. 敏捷模型",
+            "C. 混合模型",
+            "D. 螺旋模型"
+          ],
+          "answer": "A",
+          "analysis": "课程资料指出，瀑布模型缺点包括变更困难，适合需求稳定的项目。",
+          "knowledge_point": "常用开发模型",
+          "score": 10
+        },
+        {
+          "id": "d6073c589e",
+          "type": "choice",
+          "question": "在Scrum框架中，不属于核心角色的是？",
+          "options": [
+            "A. 产品负责人",
+            "B. Scrum Master",
+            "C. 项目经理",
+            "D. 开发团队"
+          ],
+          "answer": "C",
+          "analysis": "课程资料明确Scrum核心角色为产品负责人、Scrum Master和开发团队，不包括项目经理。",
+          "knowledge_point": "常用开发模型",
+          "score": 10
+        },
+        {
+          "id": "8ffa6eeebd",
+          "type": "choice",
+          "question": "WBS（工作分解结构）属于哪个管理活动？",
+          "options": [
+            "A. 进度管理",
+            "B. 风险管理",
+            "C. 范围管理",
+            "D. 质量管理"
+          ],
+          "answer": "C",
+          "analysis": "课程资料在关键管理活动中指出，范围管理包括WBS分解。",
+          "knowledge_point": "关键管理活动",
+          "score": 10
+        },
+        {
+          "id": "95564a33a4",
+          "type": "short",
+          "question": "简答题：请列举软件项目管理中常用的两种版本控制工具。",
+          "options": [],
+          "answer": "Git、SVN",
+          "analysis": "课程资料在常见工具与技术中明确列出版本控制工具为Git和SVN。",
+          "knowledge_point": "常见工具与技术",
+          "score": 10
+        }
+      ],
+      "published_at": "2026-07-07 16:42"
+    },
     {
       "id": "0a1cbec9e2",
       "title": "1 · 全文练习",
@@ -190,6 +302,98 @@
     }
   ],
   "submissions": [
+    {
+      "id": "6f233bd104",
+      "exam_id": "54e0578fc0",
+      "exam_title": "软件项目管理 · 全文练习",
+      "student": "张同学",
+      "score": 40,
+      "total": 50,
+      "accuracy": 80,
+      "submitted_at": "2026-07-08 09:37",
+      "details": [
+        {
+          "id": "3a46e55dd3",
+          "type": "choice",
+          "question": "软件项目管理遵循的PMBOK框架中包含多少个知识领域？",
+          "options": [
+            "A. 五个",
+            "B. 八个",
+            "C. 十个",
+            "D. 十二个"
+          ],
+          "answer": "C",
+          "analysis": "根据课程资料，PMBOK框架包含五大过程组和十大知识领域。",
+          "knowledge_point": "项目管理架构",
+          "score": 10,
+          "student_answer": "C",
+          "correct": true
+        },
+        {
+          "id": "024307c0b4",
+          "type": "choice",
+          "question": "以下哪个开发模型适合需求稳定的项目？",
+          "options": [
+            "A. 瀑布模型",
+            "B. 敏捷模型",
+            "C. 混合模型",
+            "D. 螺旋模型"
+          ],
+          "answer": "A",
+          "analysis": "课程资料指出，瀑布模型缺点包括变更困难，适合需求稳定的项目。",
+          "knowledge_point": "常用开发模型",
+          "score": 10,
+          "student_answer": "A",
+          "correct": true
+        },
+        {
+          "id": "d6073c589e",
+          "type": "choice",
+          "question": "在Scrum框架中，不属于核心角色的是？",
+          "options": [
+            "A. 产品负责人",
+            "B. Scrum Master",
+            "C. 项目经理",
+            "D. 开发团队"
+          ],
+          "answer": "C",
+          "analysis": "课程资料明确Scrum核心角色为产品负责人、Scrum Master和开发团队，不包括项目经理。",
+          "knowledge_point": "常用开发模型",
+          "score": 10,
+          "student_answer": "C",
+          "correct": true
+        },
+        {
+          "id": "8ffa6eeebd",
+          "type": "choice",
+          "question": "WBS（工作分解结构）属于哪个管理活动？",
+          "options": [
+            "A. 进度管理",
+            "B. 风险管理",
+            "C. 范围管理",
+            "D. 质量管理"
+          ],
+          "answer": "C",
+          "analysis": "课程资料在关键管理活动中指出，范围管理包括WBS分解。",
+          "knowledge_point": "关键管理活动",
+          "score": 10,
+          "student_answer": "C",
+          "correct": true
+        },
+        {
+          "id": "95564a33a4",
+          "type": "short",
+          "question": "简答题：请列举软件项目管理中常用的两种版本控制工具。",
+          "options": [],
+          "answer": "Git、SVN",
+          "analysis": "课程资料在常见工具与技术中明确列出版本控制工具为Git和SVN。",
+          "knowledge_point": "常见工具与技术",
+          "score": 10,
+          "student_answer": "Git",
+          "correct": false
+        }
+      ]
+    },
     {
       "id": "8fa815c161",
       "exam_id": "0a1cbec9e2",
