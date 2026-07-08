@@ -18,6 +18,7 @@ SEED_DATA = {
         {"student": "王同学", "topic": "HTTP状态码", "score": 64, "at": "2026-07-03"},
     ],
     "questions": [],
+    "chat_history": [],
     "exams": [],
     "submissions": [],
 }
@@ -36,6 +37,7 @@ class JsonStore:
             data.setdefault("exams", [])
             data.setdefault("submissions", [])
             data.setdefault("questions", [])
+            data.setdefault("chat_history", [])
             return data
 
     def save(self, data: dict) -> None:
