@@ -1,57 +1,89 @@
-import json
-import math
-import threading
-from pathlib import Path
+from functools import lru_cache
+
+from fastapi import HTTPException
 
 from core.config import settings
 
-_lock = threading.RLock()
+COLLECTION_NAME = "mainrag_knowledge"
 
 
-def _initial_data() -> dict:
-    return {"items": []}
+@lru_cache(maxsize=1)
+def get_collection():
+    """使用 ChromaDB 作为持久化向量数据库。"""
+    try:
+        import chromadb
+    except ImportError as exc:
+        raise HTTPException(
+            503,
+            "缺少 ChromaDB，无法使用向量数据库。请先安装：python -m pip install chromadb==0.5.23",
+        ) from exc
 
-
-def load_vectors() -> dict:
-    with _lock:
-        path = settings.vector_file
-        if not path.exists():
-            save_vectors(_initial_data())
-        return json.loads(path.read_text(encoding="utf-8"))
-
-
-def save_vectors(data: dict) -> None:
-    with _lock:
-        path = settings.vector_file
-        path.parent.mkdir(exist_ok=True)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        temporary.replace(path)
+    client = chromadb.PersistentClient(path=str(settings.vector_db_dir))
+    return client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
 
 
 def replace_document_vectors(document_id: str, rows: list[dict]) -> None:
-    data = load_vectors()
-    data["items"] = [item for item in data.get("items", []) if item.get("document_id") != document_id]
-    data["items"].extend(rows)
-    save_vectors(data)
+    collection = get_collection()
+    delete_document_vectors(document_id)
+    if not rows:
+        return
+
+    collection.add(
+        ids=[row["id"] for row in rows],
+        documents=[row["content"] for row in rows],
+        embeddings=[row["embedding"] for row in rows],
+        metadatas=[
+            {
+                "document_id": row["document_id"],
+                "document": row["document"],
+                "chunk": row["chunk"],
+            }
+            for row in rows
+        ],
+    )
 
 
 def delete_document_vectors(document_id: str) -> None:
-    data = load_vectors()
-    data["items"] = [item for item in data.get("items", []) if item.get("document_id") != document_id]
-    save_vectors(data)
+    collection = get_collection()
+    try:
+        collection.delete(where={"document_id": document_id})
+    except Exception:
+        pass
 
 
 def clear_vectors() -> None:
-    save_vectors(_initial_data())
+    collection = get_collection()
+    try:
+        collection.delete()
+    except Exception:
+        pass
 
 
-def cosine_similarity(left: list[float], right: list[float]) -> float:
-    if not left or not right or len(left) != len(right):
-        return 0.0
-    dot = sum(a * b for a, b in zip(left, right))
-    left_norm = math.sqrt(sum(a * a for a in left))
-    right_norm = math.sqrt(sum(b * b for b in right))
-    if not left_norm or not right_norm:
-        return 0.0
-    return dot / (left_norm * right_norm)
+def query_vectors(query_embedding: list[float], top_k: int = 5) -> list[dict]:
+    collection = get_collection()
+    if not query_embedding:
+        return []
+
+    result = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=max(1, top_k),
+        include=["documents", "metadatas", "distances"],
+    )
+    documents = result.get("documents", [[]])[0]
+    metadatas = result.get("metadatas", [[]])[0]
+    distances = result.get("distances", [[]])[0]
+
+    rows = []
+    for content, metadata, distance in zip(documents, metadatas, distances):
+        score = max(0.0, min(1.0, 1 - float(distance)))
+        rows.append({
+            "document_id": metadata.get("document_id"),
+            "document": metadata.get("document"),
+            "content": content,
+            "chunk": metadata.get("chunk"),
+            "score": round(score, 4),
+        })
+    return rows

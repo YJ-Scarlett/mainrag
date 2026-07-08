@@ -2,7 +2,7 @@ import re
 from collections import Counter
 
 from services.embedding_service import embed_texts
-from services.vector_store import clear_vectors, cosine_similarity, load_vectors, replace_document_vectors
+from services.vector_store import clear_vectors, query_vectors, replace_document_vectors
 from storage.json_store import store
 
 
@@ -53,20 +53,7 @@ async def retrieve(query: str, top_k: int = 5) -> list[dict]:
     query_embeddings = await embed_texts([query])
     if not query_embeddings:
         return []
-    query_vector = query_embeddings[0]
-    rows = []
-    for item in load_vectors().get("items", []):
-        score = cosine_similarity(query_vector, item.get("embedding", []))
-        if score > 0:
-            rows.append({
-                "document_id": item["document_id"],
-                "document": item["document"],
-                "content": item["content"],
-                "chunk": item["chunk"],
-                "score": round(score, 4),
-            })
-    rows.sort(key=lambda row: row["score"], reverse=True)
-    return rows[:top_k]
+    return query_vectors(query_embeddings[0], top_k)
 
 
 def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:

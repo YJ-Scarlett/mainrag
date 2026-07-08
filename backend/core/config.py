@@ -14,6 +14,7 @@ class Settings:
     upload_dir: Path = BACKEND_DIR / "uploads"
     database_file: Path = BACKEND_DIR / "data" / "store.json"
     vector_file: Path = BACKEND_DIR / "data" / "vector_store.json"
+    vector_db_dir: Path = BACKEND_DIR / "data" / "chroma"
     frontend_dist: Path = PROJECT_DIR / "frontend" / "dist"
     deepseek_api_key: str = field(default_factory=lambda: os.getenv("DEEPSEEK_API_KEY", "").strip())
     deepseek_base_url: str = field(default_factory=lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/"))
@@ -29,3 +30,4 @@ settings = Settings()
 settings.data_dir.mkdir(exist_ok=True)
 settings.upload_dir.mkdir(exist_ok=True)
 settings.embedding_cache_dir.mkdir(exist_ok=True)
+settings.vector_db_dir.mkdir(exist_ok=True)
