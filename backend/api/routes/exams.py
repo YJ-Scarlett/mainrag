@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from schemas.exam import GenerateExamRequest, SubmitExamRequest
+from schemas.exam import GenerateExamRequest, PublishExamRequest, SubmitExamRequest
 from services.exam_service import (
     delete_exam, generate_exam, list_exams, publish_exam,
     student_submissions, submit_exam, wrong_questions,
@@ -11,7 +11,7 @@ router = APIRouter()
 
 @router.post("/generate")
 async def generate(body: GenerateExamRequest):
-    return await generate_exam(body.document_id, body.chapter, body.title, body.count, body.difficulty)
+    return await generate_exam(body.document_id, body.chapter, body.title, body.count, body.difficulty, body.question_types)
 
 
 @router.get("")
@@ -26,8 +26,8 @@ def get_exams(published_only: bool = False):
 
 
 @router.post("/{exam_id}/publish")
-def publish(exam_id: str):
-    return publish_exam(exam_id)
+def publish(exam_id: str, body: PublishExamRequest | None = None):
+    return publish_exam(exam_id, body.question_ids if body else None)
 
 
 @router.delete("/{exam_id}")

@@ -31,10 +31,19 @@ def _normalize_questions(items: list[dict], count: int) -> list[dict]:
         options = item.get("options") or []
         if isinstance(options, dict):
             options = [f"{key}. {value}" for key, value in options.items()]
+        raw_type = str(item.get("type") or item.get("question_type") or "").lower()
+        if options:
+            question_type = "choice"
+        elif any(key in raw_type for key in ["fill", "blank", "填空"]):
+            question_type = "fill"
+        elif any(key in raw_type for key in ["solution", "essay", "answer", "解答", "简答"]):
+            question_type = "solution"
+        else:
+            question_type = "solution"
         answer = str(item.get("answer", "")).strip()
         questions.append({
             "id": uuid.uuid4().hex[:10],
-            "type": "choice" if options else "short",
+            "type": question_type,
             "question": str(item.get("question", "")).strip(),
             "options": options,
             "answer": answer,
@@ -47,15 +56,22 @@ def _normalize_questions(items: list[dict], count: int) -> list[dict]:
     return questions
 
 
-async def generate_exam(document_id: str, chapter: str, title: str, count: int, difficulty: str) -> dict:
+async def generate_exam(document_id: str, chapter: str, title: str, count: int, difficulty: str, question_types: list[str] | None = None) -> dict:
     if not settings.deepseek_api_key:
         raise HTTPException(503, "尚未配置 DEEPSEEK_API_KEY，无法生成习题")
     document = get_document(document_id)
     source = document["content"][:30000]
+    type_map = {"choice": "单项选择题", "fill": "填空题", "solution": "解答题"}
+    selected_types = [item for item in (question_types or ["choice", "fill", "solution"]) if item in type_map]
+    if not selected_types:
+        selected_types = ["choice", "fill", "solution"]
+    type_text = "、".join(type_map[item] for item in selected_types)
     prompt = f"""根据下面的课程资料生成 {count} 道{difficulty}难度习题，范围为“{chapter}”。
-优先生成单项选择题，也可以包含少量简答题。严格返回 JSON 数组，不要输出 Markdown。
-每项格式：{{"question":"题干","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"A","analysis":"解析","knowledge_point":"知识点"}}。
-简答题的 options 返回空数组，answer 返回参考答案。题目必须能从资料中得到答案。
+题型范围：{type_text}。请尽量均衡覆盖所选题型。严格返回 JSON 数组，不要输出 Markdown。
+每项格式：{{"type":"choice/fill/solution","question":"题干","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"答案或参考答案","analysis":"解析","knowledge_point":"知识点"}}。
+单项选择题 type 为 choice，options 返回 4 个选项，answer 返回选项字母。
+填空题 type 为 fill，options 返回空数组，题干用“____”标出空缺，answer 返回标准填空答案。
+解答题 type 为 solution，options 返回空数组，answer 返回参考答案。题目必须能从资料中得到答案。
 
 课程资料：
 {source}"""
@@ -89,10 +105,15 @@ def list_exams(published_only: bool = False) -> list[dict]:
     return exams
 
 
-def publish_exam(exam_id: str) -> dict:
+def publish_exam(exam_id: str, question_ids: list[str] | None = None) -> dict:
     data = store.load()
     exam = next((item for item in data["exams"] if item["id"] == exam_id), None)
     if not exam: raise HTTPException(404, "习题不存在")
+    if question_ids:
+        selected = [question for question in exam["questions"] if question["id"] in set(question_ids)]
+        if not selected:
+            raise HTTPException(400, "请至少选择一道习题发布")
+        exam["questions"] = selected
     exam["status"] = "published"; exam["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     store.save(data); return exam
 
@@ -109,7 +130,15 @@ def submit_exam(exam_id: str, student: str, answers: dict[str, str]) -> dict:
     details, earned, total = [], 0, 0
     for question in exam["questions"]:
         student_answer = str(answers.get(question["id"], "")).strip()
-        correct = student_answer.lower() == str(question["answer"]).strip().lower()
+        standard_answer = str(question["answer"]).strip()
+        if question.get("type") == "solution":
+            correct = bool(student_answer) and (
+                student_answer.lower() == standard_answer.lower()
+                or standard_answer.lower() in student_answer.lower()
+                or student_answer.lower() in standard_answer.lower()
+            )
+        else:
+            correct = student_answer.lower() == standard_answer.lower()
         total += question["score"]
         if correct: earned += question["score"]
         details.append({**question, "student_answer": student_answer, "correct": correct})
