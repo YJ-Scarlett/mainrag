@@ -1,3 +1,6 @@
+import sys
+sys.path.append(r'D:\python_libs')
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

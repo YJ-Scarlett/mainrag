@@ -1,6 +1,7 @@
 ﻿import React, {useEffect, useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import './styles.css';
 
@@ -108,12 +109,6 @@ function Login({onLogin}) {
         <h2>{mode === 'login' ? '欢迎回来' : '创建账号'}</h2>
         <p>{mode === 'login' ? '选择你的身份，开始今天的学习旅程' : '注册后即可使用知问课堂'}</p>
 
-        {/* 登录/注册切换 */}
-        <div className="role-tabs" style={{ marginBottom: '12px' }}>
-          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
-          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
-        </div>
-
         {/* 角色选择 */}
         <div className="role-tabs" style={{ marginBottom: '12px' }}>
           <button type="button" className={role === 'student' ? 'active' : ''} onClick={() => switchRole('student')}><GraduationCap/>学生端</button>
@@ -128,6 +123,13 @@ function Login({onLogin}) {
             <label>密码
               <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
             </label>
+
+            {/* 登录/注册切换按钮 — 在账号密码下方 */}
+            <div className="role-tabs" style={{ marginBottom: '12px' }}>
+              <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
+              <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
+            </div>
+
             <button className="primary login-btn" disabled={loading}>
               {loading ? '正在登录…' : '进入知问课堂'}
               <ChevronRight size={18}/>
@@ -148,6 +150,13 @@ function Login({onLogin}) {
             <label>确认密码
               <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({...registerForm, confirm: e.target.value})} placeholder="再次输入密码" />
             </label>
+
+            {/* 登录/注册切换按钮 — 在确认密码下方 */}
+            <div className="role-tabs" style={{ marginBottom: '12px' }}>
+              <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
+              <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
+            </div>
+
             <button className="primary login-btn" disabled={loading}>
               {loading ? '注册中…' : '注册新账号'}
               <ChevronRight size={18}/>
@@ -165,9 +174,12 @@ const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','
 const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);return pathRole===role&&slugPage[slug]?slugPage[slug]:'dashboard'}
-function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><div className="content">{page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}</div></main></div>}
+function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><ErrorBoundary resetKey={page}>
+  <div className="content">
+    {page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}
+  </div>
+</ErrorBoundary></main></div>}
 class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error)this.setState({error:null});if(this.state.error&&!sessionStorage.getItem('mainrag-auto-refreshing')){sessionStorage.setItem('mainrag-auto-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-auto-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
-function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{const url=`/${user.role}/${pageSlug[next]}`;if(location.pathname!==url)location.assign(url);else location.reload()};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><ErrorBoundary resetKey={page}><div className="content">{page==='dashboard'?<Dashboard role={user.role} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}</div></ErrorBoundary></main></div>}
 
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
 function Dashboard({user, go}) {
@@ -243,8 +255,174 @@ function Dashboard({user, go}) {
   );
 }
 
-function Chat({user}){const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});useEffect(loadHistory,[user.name]);const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};const send=async(q=input)=>{if(!q.trim()||loading)return;setActiveHistory('');setMessages(m=>[...m,{role:'user',text:q}]);setInput('');setLoading(true);try{const d=await post('/chat',{message:q,student:user.name});setMessages(m=>[...m,{role:'ai',text:d.answer,sources:d.sources}]);loadHistory()}catch(e){setMessages(m=>[...m,{role:'ai',text:e.message}])}finally{setLoading(false)}};return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className="bubble">{m.text}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><span key={j}>{s.document} · 片段 {s.chunk}<em>{Math.round(s.score*100)}%</em></span>)}</div>}</div></div>)}{loading&&<div className="message ai"><div className="avatar"><Sparkles/></div><div className="bubble typing"><i/><i/><i/></div></div>}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()}><Send/></button></div><small>回答由课程知识库生成，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span>{item.question}</span><small>{item.topic} · {item.at?.replace('T',' ')}</small></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>}
+function Chat({user}) {
+  const welcome = { role: 'ai', text: `你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。` };
+  const [messages, setMessages] = useState([welcome]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [activeHistory, setActiveHistory] = useState('');
 
+  const loadHistory = () => request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d => setHistoryItems(d.items || [])).catch(() => {});
+  useEffect(loadHistory, [user.name]);
+
+  const openHistory = item => {
+    setActiveHistory(item.id);
+    setMessages([welcome, { role: 'user', text: item.question }, { role: 'ai', text: item.answer, sources: item.sources || [] }]);
+  };
+
+  // ==================== 流式发送 ====================
+const send = async (q = input) => {
+  if (!q.trim() || loading) return;
+  setActiveHistory('');
+  setMessages(m => [...m, { role: 'user', text: q }]);
+  setInput('');
+  setLoading(true);
+  setMessages(m => [...m, { role: 'ai', text: '', sources: [] }]);
+
+  try {
+    const response = await fetch(`${API}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: q, student: user.name })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`请求失败 (${response.status}): ${errorText}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let fullAnswer = '';
+    let sources = [];
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+
+      const idx = buffer.indexOf('[SOURCES]');
+      if (idx !== -1) {
+        // 提取标记之前的正文
+        const textPart = buffer.substring(0, idx);
+        // 直接覆盖 fullAnswer（因为 buffer 中可能已经包含了之前误加的部分）
+        fullAnswer = textPart;
+        // 更新消息
+        setMessages(m => {
+          const newMessages = [...m];
+          const last = newMessages[newMessages.length - 1];
+          if (last.role === 'ai') last.text = fullAnswer;
+          return newMessages;
+        });
+
+        const jsonPart = buffer.substring(idx + 9);
+        try {
+          sources = JSON.parse(jsonPart);
+        } catch (e) {
+          console.warn('Failed to parse sources:', e);
+          sources = [];
+        }
+        break;
+      } else {
+        fullAnswer += chunk;
+        setMessages(m => {
+          const newMessages = [...m];
+          const last = newMessages[newMessages.length - 1];
+          if (last.role === 'ai') last.text = fullAnswer;
+          return newMessages;
+        });
+      }
+    }
+
+    // 循环结束后，更新 sources
+    setMessages(m => {
+      const newMessages = [...m];
+      const last = newMessages[newMessages.length - 1];
+      if (last.role === 'ai') last.sources = sources;
+      return newMessages;
+    });
+
+    loadHistory();
+  } catch (e) {
+    setMessages(m => {
+      const newMessages = [...m];
+      const last = newMessages[newMessages.length - 1];
+      if (last.role === 'ai') last.text = e.message || '网络错误，请稍后重试';
+      return newMessages;
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+  // ==================================================
+
+  return (
+    <div className="chat-layout">
+      <section className="chat-box">
+        <div className="chat-top">
+          <div className="bot-avatar"><Bot/></div>
+          <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答</small></div>
+        </div>
+        <div className="messages">
+          {messages.map((m, i) => (
+            <div className={'message ' + m.role} key={i}>
+              {m.role === 'ai' && <div className="avatar"><Sparkles/></div>}
+              <div>
+                <div className="bubble">
+  {m.role === 'ai' ? (
+    <ReactMarkdown>{m.text}</ReactMarkdown>
+  ) : (
+    m.text
+  )}
+</div>
+                {m.sources?.length > 0 && (
+                  <div className="sources">
+                    <b><FileText/>参考来源</b>
+                    {m.sources.map((s, j) => (
+                      <span key={j}>{s.document} · 片段 {s.chunk}<em>{Math.round(s.score * 100)}%</em></span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="message ai">
+              <div className="avatar"><Sparkles/></div>
+              <div className="bubble typing"><i/><i/><i/></div>
+            </div>
+          )}
+        </div>
+        <div className="composer">
+          <div>
+            <textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+            <button onClick={() => send()}><Send/></button>
+          </div>
+          <small>回答由课程知识库生成，请结合课堂内容判断</small>
+        </div>
+      </section>
+      <aside className="suggestions chat-side">
+        <div className="side-block">
+          <h3><Sparkles/>试试这样问</h3>
+          {['TCP 如何保证可靠传输？', 'HTTP 和 HTTPS 有什么区别？', '什么是数据库事务的 ACID？', 'IPv4 与 IPv6 的主要区别？'].map(x => <button key={x} onClick={() => send(x)}>{x}<ChevronRight/></button>)}
+        </div>
+        <div className="side-block history-block">
+          <h3><MessageCircle/>历史问答</h3>
+          {historyItems.length === 0 ? <p className="empty-history">暂无历史记录，提问后会自动保存。</p> : historyItems.map(item => (
+            <button className={activeHistory === item.id ? 'active' : ''} key={item.id} onClick={() => openHistory(item)}>
+              <span>{item.question}</span>
+              <small>{item.topic} · {item.at?.replace('T', ' ')}</small>
+            </button>
+          ))}
+        </div>
+        <div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div>
+      </aside>
+    </div>
+  );
+}
 function Knowledge({user}) {
   const isTeacher=user.role==='teacher';
   const [docs,setDocs]=useState([]),[selected,setSelected]=useState(null),[uploading,setUploading]=useState(false),[reindexing,setReindexing]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[uploadName,setUploadName]=useState(''),[msg,setMsg]=useState('');
@@ -288,13 +466,3 @@ function Wrongbook({user}){const [items,setItems]=useState([]);useEffect(()=>{re
 
 function App(){const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
 createRoot(document.getElementById('root')).render(<App/>);
-
-
-
-
-
-
-
-
-
-

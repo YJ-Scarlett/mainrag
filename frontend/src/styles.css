@@ -73,3 +73,24 @@
 .modal-box .primary:hover {
   background: #4466dd;
 }
+
+/* 让 AI 回答中的 Markdown 渲染更紧凑 */
+.bubble .markdown-body p {
+  margin: 0.1em 0 !important;
+}
+
+.bubble .markdown-body ol,
+.bubble .markdown-body ul {
+  margin: 0.1em 0 !important;
+  padding-left: 1.5em !important;
+}
+
+.bubble .markdown-body li {
+  margin: 0.05em 0 !important;
+}
+
+/* 如果有嵌套列表，也压缩 */
+.bubble .markdown-body ol ol,
+.bubble .markdown-body ul ul {
+  margin: 0.05em 0 !important;
+}
