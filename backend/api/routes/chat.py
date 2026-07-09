@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from schemas.chat import ChatRequest
@@ -90,3 +90,21 @@ async def chat_history(student: str = "", limit: int = 30):
         items = [item for item in items if item.get("student") == student]
     items = sorted(items, key=lambda item: item.get("at", ""), reverse=True)
     return {"items": items[: max(1, min(limit, 100))]}
+
+
+@router.delete("/chat/history/{history_id}")
+async def delete_chat_history(history_id: str, student: str = ""):
+    data = store.load()
+    items = data.get("chat_history", [])
+    kept = []
+    deleted = None
+    for item in items:
+        if item.get("id") == history_id and (not student or item.get("student") == student):
+            deleted = item
+            continue
+        kept.append(item)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="历史问答不存在或无权删除")
+    data["chat_history"] = kept
+    store.save(data)
+    return {"message": "历史问答已删除", "id": history_id}

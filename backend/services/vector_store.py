@@ -40,6 +40,7 @@ def replace_document_vectors(document_id: str, rows: list[dict]) -> None:
                 "document_id": row["document_id"],
                 "document": row["document"],
                 "chunk": row["chunk"],
+                "page": row.get("page") or 0,
             }
             for row in rows
         ],
@@ -84,6 +85,7 @@ def query_vectors(query_embedding: list[float], top_k: int = 5) -> list[dict]:
             "document": metadata.get("document"),
             "content": content,
             "chunk": metadata.get("chunk"),
+            "page": metadata.get("page") or None,
             "score": round(score, 4),
         })
     return rows

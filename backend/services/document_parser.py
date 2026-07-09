@@ -17,9 +17,14 @@ SUPPORTED_EXTENSIONS = {".doc", ".docx", ".ppt", ".pptx", ".pdf"}
 
 def _extract_pdf(path: Path) -> str:
     try:
-        return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
+        pages = []
+        for number, page in enumerate(PdfReader(path).pages, 1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                pages.append(f"[[PAGE:{number}]]\n{text}")
+        return "\n\n".join(pages)
     except Exception as exc:
-        raise HTTPException(400, "PDF 解析失败，请确认文件未损坏且不是加密文件。") from exc
+        raise HTTPException(400, "PDF ?????????????????????") from exc
 
 
 def _extract_docx(path: Path) -> str:

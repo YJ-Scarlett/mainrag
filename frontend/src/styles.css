@@ -13,6 +13,12 @@
 .history-block>button span{display:block;color:#354056;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .history-block>button small{display:block;color:#9aa3b1;font-size:9px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .empty-history{font-size:10px;color:#9aa3b1;line-height:1.6;margin:8px 0 0}
+.history-block>button{width:100%;display:flex;align-items:center;gap:8px;text-align:left}
+.history-block>button .history-text{flex:1;min-width:0}
+.history-block>button .history-text b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-delete{width:28px;height:28px;border-radius:8px;color:#a5adbb;display:grid;place-items:center;opacity:.45;flex:0 0 auto}
+.history-block>button:hover .history-delete{opacity:1}
+.history-delete:hover{background:#fff1f2;color:#c04455}
 .knowledge-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0}
 .secondary-btn{border:1px solid #dfe5f2;background:#fff;color:#59677f;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:8px;font-weight:600}
 .secondary-btn:disabled{opacity:.6;cursor:not-allowed}
@@ -110,3 +116,7 @@
 .markdown-body h4{margin:6px 0 8px;font-size:14px}
 .stream-cursor{display:inline-block;margin-left:2px;color:#5c74e4;animation:blink 1s step-end infinite}
 @keyframes blink{50%{opacity:0}}
+.source-sup{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;min-width:18px;height:18px;border-radius:999px;background:#eef2ff;color:#5570dd;border:1px solid #dce4ff;font-size:10px;font-weight:800;line-height:1;vertical-align:super;cursor:pointer;box-shadow:0 2px 6px #4f67d51a}
+.source-sup:hover{background:#5c74e4;color:#fff;border-color:#5c74e4}
+.source-index{width:20px;height:20px;border-radius:50%;background:#edf1ff;color:#5870dc;display:inline-grid;place-items:center;font-style:normal;font-weight:800;font-size:10px;flex:0 0 20px}
+.source-link:hover .source-index{background:#5c74e4;color:#fff}

@@ -260,10 +260,20 @@ function renderInlineMarkdown(text){
   return parts.map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part)
 }
 
-function MarkdownText({text}){
+function SourceSup({source,index,onSourceClick}){
+  if(!source)return null;
+  return <sup className="source-sup" title={`来源 ${index+1}：${source.document}`} onClick={e=>{e.stopPropagation();onSourceClick?.(source)}}>[{index+1}]</sup>
+}
+
+function SourceSups({items=[],onSourceClick}){
+  if(!items.length)return null;
+  return <span className="source-sup-group">{items.map(({source,index})=><SourceSup key={index} source={source} index={index} onSourceClick={onSourceClick}/>)}</span>
+}
+
+function MarkdownText({text,sources=[],onSourceClick}){
   const cleanText=String(text||'').replace(/\n?\s*(参考资料|参考来源|资料来源|来源)\s*[:：][\s\S]*$/,'');
   const lines=cleanText.split('\n');
-  const blocks=[];
+  const parsed=[];
   let i=0;
   while(i<lines.length){
     const line=lines[i];
@@ -277,7 +287,7 @@ function MarkdownText({text}){
         items.push(m[1]);
         i++;
       }
-      blocks.push(<ol key={blocks.length}>{items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>);
+      parsed.push({type:'ol',items});
       continue;
     }
     const bullet=line.match(/^\s*[-*]\s+(.+)$/);
@@ -289,15 +299,30 @@ function MarkdownText({text}){
         items.push(m[1]);
         i++;
       }
-      blocks.push(<ul key={blocks.length}>{items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>);
+      parsed.push({type:'ul',items});
       continue;
     }
     const heading=line.match(/^\s*#{1,3}\s+(.+)$/);
-    if(heading){blocks.push(<h4 key={blocks.length}>{renderInlineMarkdown(heading[1])}</h4>);i++;continue}
+    if(heading){parsed.push({type:'heading',text:heading[1]});i++;continue}
     const paragraph=[];
     while(i<lines.length&&lines[i].trim()&&!/^\s*\d+[.)、]\s+/.test(lines[i])&&!/^\s*[-*]\s+/.test(lines[i])&&!/^\s*#{1,3}\s+/.test(lines[i])){paragraph.push(lines[i]);i++}
-    blocks.push(<p key={blocks.length}>{renderInlineMarkdown(paragraph.join('\n'))}</p>);
+    parsed.push({type:'p',text:paragraph.join('\n')});
   }
+  const citeTargets=parsed.map((block,index)=>block.type==='heading'?null:index).filter(index=>index!==null);
+  const groups=parsed.map(()=>[]);
+  if(citeTargets.length&&sources.length){
+    sources.forEach((source,index)=>{
+      const target=citeTargets[Math.min(index,citeTargets.length-1)];
+      groups[target].push({source,index});
+    });
+  }
+  const blocks=parsed.map((block,index)=>{
+    const cites=<SourceSups items={groups[index]} onSourceClick={onSourceClick}/>;
+    if(block.type==='ol')return <React.Fragment key={index}><ol>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>{cites}</React.Fragment>;
+    if(block.type==='ul')return <React.Fragment key={index}><ul>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>{cites}</React.Fragment>;
+    if(block.type==='heading')return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
+    return <p key={index}>{renderInlineMarkdown(block.text)}{cites}</p>;
+  });
   return <div className="markdown-body">{blocks}</div>
 }
 
@@ -307,6 +332,7 @@ function Chat({user}){
   const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(loadHistory,[user.name]);
   const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
+  const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource=s=>{if(!s?.document_id)return;location.assign(`/${user.role}/knowledge?doc=${encodeURIComponent(s.document_id)}&page=${encodeURIComponent(s.page||'')}&chunk=${encodeURIComponent(s.chunk||'')}`)};
   const send=async(q=input)=>{
@@ -342,7 +368,7 @@ function Chat({user}){
     }catch(e){appendToLastAi({text:e.message,streaming:false})}
     finally{setLoading(false)}
   };
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title="点击跳转到对应文档和页面"><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span>{item.question}</span><small>{item.topic} · {item.at?.replace('T',' ')}</small></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
+  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和页面`}><i className="source-index">{j+1}</i><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
 }
 
 function Knowledge({user}) {
