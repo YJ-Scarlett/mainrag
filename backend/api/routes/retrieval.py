@@ -7,5 +7,5 @@ router = APIRouter()
 
 
 @router.post("/search")
-def search(body: SearchRequest):
-    return {"query": body.query, "results": retrieve(body.query, body.top_k)}
+async def search(body: SearchRequest):
+    return {"query": body.query, "results": await retrieve(body.query, body.top_k)}
