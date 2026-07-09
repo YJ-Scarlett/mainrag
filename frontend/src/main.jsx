@@ -39,7 +39,75 @@ function Knowledge({user}) {
   return <><section className="knowledge-head"><div><span className="eyebrow"><Database size={15}/>{isTeacher?'知识中枢':'课程资源'}</span><h1>{isTeacher?'课程知识库':'我的课程资料'}</h1><p>{isTeacher?'上传、查看和管理课程资料，文件会自动建立向量索引。':'查看教师上传的课程文档，选择资料即可阅读解析后的正文。'}</p></div>{isTeacher&&<div className="knowledge-actions"><button className="secondary-btn" onClick={reindex} disabled={reindexing||uploading}><Sparkles/>{reindexing?'正在重建…':'重建向量索引'}</button><label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf" onChange={upload} disabled={uploading}/></label></div>}</section>{uploading&&<div className="upload-progress"><div className="progress-file"><i><FileText/></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{width:progress+'%'}}/></div></div>}{msg&&<div className="notice">{msg}</div>}<div className="kb-summary"><div><Database/><span><b>{docs.length}</b><small>知识文档</small></span></div><div><FileText/><span><b>{docs.reduce((n,d)=>n+d.chunks,0)}</b><small>向量片段</small></span></div><div><Sparkles/><span><b>向量检索</b><small>资料状态</small></span></div></div><section className="panel table-panel"><div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF</p></div></div><div className="doc-table"><div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>操作</span></div>{docs.map(d=><div className="tr" key={d.id}><span className="doc-name"><i><FileText/></i><b>{d.name}<small>{d.size} KB</small></b></span><span><em className="tag">{d.type}</em></span><span>{d.chunks}</span><span>{d.created_at}</span><span className="doc-actions"><button className="view-doc" onClick={()=>view(d.id)}><BookOpen/>查看</button>{isTeacher&&<button className="trash" onClick={()=>del(d.id)}><Trash2/></button>}</span></div>)}</div></section>{selected&&<section className="panel document-reader"><div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB</p></div><button onClick={()=>setSelected(null)}><X/></button></div>{selected.has_preview?<iframe className="document-frame" src={`${API}/knowledge/${selected.id}/preview`} title={selected.name}/>:<div className="no-preview"><AlertCircle/><b>暂无原版式预览</b><p>{selected.preview_error||'该文件已完成文本解析和向量入库，但 Office 未能生成 PDF 版式预览。下方为解析出的知识库文本，可正常用于检索、问答和出题。'}</p><pre>{selected.content}</pre></div>}</section>}</>
 }
 
-function Analysis({role}){const [data,setData]=useState(null);useEffect(()=>{request(role==='teacher'?'/analysis/class':'/analysis/student').then(setData).catch(()=>setData({summary:{},mastery:[],trend:[],students:[],suggestion:'学情数据暂时无法加载，请稍后再试。'}))},[role]);const mastery=data?.mastery||[],summary=data?.summary||{},students=data?.students||[];return <><section className="analysis-title"><div><span className="eyebrow"><ChartNoAxesCombined size={15}/>{role==='teacher'?'班级数据洞察':'个性化学习报告'}</span><h1>{role==='teacher'?'班级学情分析':'我的学情分析'}</h1><p>{role==='teacher'?'基于学习记录与问答行为，快速掌握班级学习状态。':'看见自己的进步，也找到下一步努力的方向。'}</p></div></section><div className="stats"><Stat icon={ChartNoAxesCombined} label="平均掌握度" value={(summary.average||0)+'%'} detail="综合学习活动" tone="blue"/><Stat icon={BookOpen} label="学习活动" value={summary.activities||0} detail="已纳入分析" tone="green"/><Stat icon={MessageCircle} label="主动提问" value={summary.questions||0} detail="探索意识良好" tone="violet"/><Stat icon={Database} label="课程资料" value={summary.documents||0} detail="可供检索" tone="orange"/></div><div className="analysis-grid"><section className="panel"><div className="panel-head"><div><h3>知识点掌握度</h3><p>按学习活动综合评估</p></div></div><div className="chart"><ResponsiveContainer><BarChart data={mastery} layout="vertical" margin={{left:20,right:30}}><CartesianGrid stroke="#eef1f7" horizontal={false}/><XAxis type="number" domain={[0,100]} axisLine={false}/><YAxis type="category" dataKey="topic" width={90} axisLine={false} tickLine={false}/><Tooltip/><Bar dataKey="score" fill="#627eea" radius={[0,8,8,0]} barSize={20}/></BarChart></ResponsiveContainer></div></section><section className="panel insight"><div className="insight-icon"><Sparkles/></div><h3>智能学习建议</h3><p>{data?.suggestion||'暂无足够学习记录。'}</p><div className="insight-list">{mastery.slice(0,3).map((m,i)=><div key={m.topic}><span>{i+1}</span><b>{m.topic}<small>{m.score<70?'建议重点复习':m.score<85?'继续巩固':'掌握良好'}</small></b><em>{m.score}%</em></div>)}</div></section></div>{role==='teacher'&&<section className="panel student-panel"><div className="panel-head"><div><h3>学生概览</h3><p>班级个体学习状态</p></div></div><div className="student-list">{students.map((s,i)=><div key={s.name||i}><span className="student-avatar">{(s.name||'学')[0]}</span><b>{s.name||'学生'}<small>{s.activities||0} 次学习活动</small></b><div className="mini-progress"><i style={{width:(s.average||0)+'%'}}/></div><em>{s.average||0}%</em></div>)}</div></section>}</>}
+function Analysis({role}){
+  const [data,setData]=useState(null);
+  useEffect(()=>{
+    request(role==='teacher'?'/analysis/class':'/analysis/student')
+      .then(setData)
+      .catch(()=>setData({summary:{},mastery:[],trend:[],students:[],suggestion:'学情数据暂时无法加载，请稍后再试。'}));
+  },[role]);
+  const mastery=data?.mastery||[], summary=data?.summary||{}, students=data?.students||[];
+  return <>
+    <section className="analysis-title">
+      <div>
+        <span className="eyebrow"><ChartNoAxesCombined size={15}/>{role==='teacher'?'班级数据洞察':'个性化学习报告'}</span>
+        <h1>{role==='teacher'?'班级学情分析':'我的学情分析'}</h1>
+        <p>{role==='teacher'?'基于学习记录与问答行为，快速掌握班级学习状态。':'看见自己的进步，也找到下一步努力的方向。'}</p>
+      </div>
+    </section>
+    <div className="stats">
+      <Stat icon={ChartNoAxesCombined} label="平均掌握度" value={(summary.average||0)+'%'} detail="综合学习活动" tone="blue"/>
+      <Stat icon={BookOpen} label="学习活动" value={summary.activities||0} detail="已纳入分析" tone="green"/>
+      <Stat icon={MessageCircle} label="主动提问" value={summary.questions||0} detail="探索意识良好" tone="violet"/>
+      <Stat icon={Database} label="课程资料" value={summary.documents||0} detail="可供检索" tone="orange"/>
+    </div>
+    <div className="analysis-grid">
+      <section className="panel">
+        <div className="panel-head">
+          <div><h3>知识点掌握度</h3><p>按学习活动综合评估</p></div>
+        </div>
+        <div className="chart">
+          <ResponsiveContainer>
+            <BarChart data={mastery} layout="vertical" margin={{left:20,right:30}}>
+              <CartesianGrid stroke="#eef1f7" horizontal={false}/>
+              <XAxis type="number" domain={[0,100]} axisLine={false}/>
+              <YAxis type="category" dataKey="topic" width={90} axisLine={false} tickLine={false}/>
+              <Tooltip/>
+              <Bar
+                dataKey="score"
+                fill="#627eea"
+                radius={[0,8,8,0]}
+                barSize={20}
+                minPointSize={8}
+                onClick={(data) => {
+                  const topic = data?.topic || data?.payload?.topic || data?.[0]?.payload?.topic;
+                  if (topic) {
+                    location.assign(`/student/wrongbook?knowledge=${encodeURIComponent(topic)}`);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+      <section className="panel insight">
+        <div className="insight-icon"><Sparkles/></div>
+        <h3>智能学习建议</h3>
+        <p>{data?.suggestion||'暂无足够学习记录。'}</p>
+        <div className="insight-list">
+          {mastery.slice(0,3).map((m,i)=><div key={m.topic}><span>{i+1}</span><b>{m.topic}<small>{m.score<70?'建议重点复习':m.score<85?'继续巩固':'掌握良好'}</small></b><em>{m.score}%</em></div>)}
+        </div>
+      </section>
+    </div>
+    {role==='teacher'&&<section className="panel student-panel">
+      <div className="panel-head"><div><h3>学生概览</h3><p>班级个体学习状态</p></div></div>
+      <div className="student-list">
+        {students.map((s,i)=><div key={s.name||i}><span className="student-avatar">{(s.name||'学')[0]}</span><b>{s.name||'学生'}<small>{s.activities||0} 次学习活动</small></b><div className="mini-progress"><i style={{width:(s.average||0)+'%'}}/></div><em>{s.average||0}%</em></div>)}
+      </div>
+    </section>}
+  </>;
+}
 
 function TeacherExams(){const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等'}),[loading,setLoading]=useState(false),[msg,setMsg]=useState('');const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});useEffect(load,[]);const generate=async e=>{e.preventDefault();setLoading(true);setMsg('');try{await post('/exams/generate',{...form,count:Number(form.count)});setMsg('习题生成成功，请检查后发布。');load()}catch(e){setMsg(e.message)}finally{setLoading(false)}};const publish=async id=>{await post(`/exams/${id}/publish`,{});setMsg('已发布到学生端');load()};const remove=async id=>{if(!confirm('确定删除这套习题吗？'))return;await request(`/exams/${id}`,{method:'DELETE'});load()};return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成课程习题并发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} · {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>publish(exam.id)}>发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div></>}
 
@@ -47,7 +115,144 @@ function StudentExams({user}){const [items,setItems]=useState([]),[subs,setSubs]
 
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
 
-function Wrongbook({user}){const [items,setItems]=useState([]);useEffect(()=>{request(`/exams/student/wrongbook?student=${encodeURIComponent(user.name)}`).then(d=>setItems(d.items))},[user.name]);return <><section className="analysis-title"><div><span className="eyebrow"><AlertCircle size={15}/>查漏补缺</span><h1>我的错题本</h1><p>自动收集练习中的错题，结合解析进行针对性复习。</p></div></section><div className="wrong-list">{items.length===0?<div className="panel empty"><CheckCircle2/>暂无错题，继续保持！</div>:items.map((q,i)=><article className="panel wrong-item" key={q.exam_id+q.id}><div className="wrong-meta"><span>{q.exam_title}</span><em>{q.knowledge_point}</em></div><h3>{i+1}. {q.question}</h3><p className="your-answer">你的答案：{q.student_answer||'未作答'}</p><p className="right-answer">正确答案：{q.answer}</p><div className="explanation"><Sparkles/> {q.analysis}</div></article>)}</div></>}
+function Wrongbook({user}) {
+  const [items, setItems] = useState([]);
+  const [mastery, setMastery] = useState([]);
+  const [filter, setFilter] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('knowledge') || '';
+  });
+  const [loading, setLoading] = useState(true);
+
+  // 加载错题和学情数据
+  const loadData = () => {
+    setLoading(true);
+    Promise.all([
+      request(`/exams/student/wrongbook?student=${encodeURIComponent(user.name)}`),
+      request('/analysis/student')
+    ]).then(([wrongRes, analysisRes]) => {
+      setItems(wrongRes.items || []);
+      setMastery(analysisRes.mastery || []);
+    }).catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user.name]);
+
+  // 监听 URL 变化（popstate 和 pushState 触发）
+  useEffect(() => {
+    const onPop = () => {
+      const params = new URLSearchParams(location.search);
+      setFilter(params.get('knowledge') || '');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // 点击标签：更新 URL 并设置 filter
+  const handleTagClick = (topic) => {
+    const url = topic
+      ? `/student/wrongbook?knowledge=${encodeURIComponent(topic)}`
+      : '/student/wrongbook';
+    history.pushState(null, '', url);
+    setFilter(topic || '');
+  };
+
+  // 过滤错题
+  const filteredItems = filter
+    ? items.filter(q => q.knowledge_point === filter)
+    : items;
+
+  // 计算当前筛选知识点的掌握度
+  const currentMastery = mastery.find(m => m.topic === filter);
+
+  return (
+    <>
+      <section className="analysis-title">
+        <div>
+          <span className="eyebrow"><AlertCircle size={15}/>查漏补缺</span>
+          <h1>我的错题本</h1>
+          <p>自动收集练习中的错题，结合解析进行针对性复习。</p>
+        </div>
+      </section>
+
+      {/* 掌握度标签 */}
+      {mastery.length > 0 && (
+        <div className="mastery-tags" style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+          <span style={{ fontWeight: 'bold', marginRight: '10px' }}>知识点掌握度：</span>
+          {mastery.map(m => (
+            <span
+              key={m.topic}
+              onClick={() => handleTagClick(m.topic)}
+              style={{
+                padding: '4px 14px',
+                borderRadius: '20px',
+                background: filter === m.topic ? '#5577ee' : '#eef1f7',
+                color: filter === m.topic ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: '0.2s',
+                border: filter === m.topic ? '1px solid #5577ee' : '1px solid transparent',
+              }}
+            >
+              {m.topic} {m.score}%
+            </span>
+          ))}
+          {filter && (
+            <button
+              onClick={() => handleTagClick('')}
+              style={{
+                padding: '4px 14px',
+                borderRadius: '20px',
+                background: '#f0f0f0',
+                border: '1px solid #ccc',
+                cursor: 'pointer',
+                fontSize: '14px',
+              }}
+            >
+              清除筛选
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 筛选提示 */}
+      {filter && (
+        <div style={{ marginBottom: '16px', color: '#5577ee' }}>
+          当前筛选：<strong>{filter}</strong>
+          {currentMastery && `（掌握度 ${currentMastery.score}%）`}
+          {filteredItems.length === 0 && '，暂无相关错题'}
+        </div>
+      )}
+
+      <div className="wrong-list">
+        {loading ? (
+          <div className="panel empty">加载中...</div>
+        ) : filteredItems.length === 0 ? (
+          <div className="panel empty">
+            {filter ? <CheckCircle2/> : <CheckCircle2/>}
+            {filter ? '该知识点暂无错题，继续保持！' : '暂无错题，继续保持！'}
+          </div>
+        ) : (
+          filteredItems.map((q, i) => (
+            <article className="panel wrong-item" key={q.exam_id + q.id}>
+              <div className="wrong-meta">
+                <span>{q.exam_title}</span>
+                <em>{q.knowledge_point}</em>
+              </div>
+              <h3>{i+1}. {q.question}</h3>
+              <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
+              <p className="right-answer">正确答案：{q.answer}</p>
+              <div className="explanation"><Sparkles/> {q.analysis}</div>
+            </article>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
 
 function App(){const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
 createRoot(document.getElementById('root')).render(<App/>);
