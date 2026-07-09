@@ -53,7 +53,41 @@ async def retrieve(query: str, top_k: int = 5) -> list[dict]:
     query_embeddings = await embed_texts([query])
     if not query_embeddings:
         return []
-    return query_vectors(query_embeddings[0], top_k)
+    return enrich_source_pages(query_vectors(query_embeddings[0], top_k))
+
+
+def infer_page(document_content: str, chunk_content: str) -> int | None:
+    if not document_content or not chunk_content:
+        return None
+
+    probe = chunk_content.strip()[:80]
+    direct_page = re.match(r"\s*第\s*(\d+)\s*页", chunk_content)
+    if direct_page:
+        return int(direct_page.group(1))
+
+    position = document_content.find(probe)
+    if position < 0:
+        compact_probe = re.sub(r"\s+", "", probe)
+        compact_document = re.sub(r"\s+", "", document_content)
+        compact_position = compact_document.find(compact_probe)
+        if compact_position < 0:
+            return None
+        position = compact_position
+
+    prefix = document_content[:position]
+    matches = list(re.finditer(r"第\s*(\d+)\s*页", prefix))
+    if not matches:
+        return None
+    return int(matches[-1].group(1))
+
+
+def enrich_source_pages(rows: list[dict]) -> list[dict]:
+    documents = {item["id"]: item for item in store.load()["documents"]}
+    for row in rows:
+        document = documents.get(row.get("document_id"))
+        if document:
+            row["page"] = infer_page(document.get("content", ""), row.get("content", ""))
+    return rows
 
 
 def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:
@@ -86,4 +120,4 @@ def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:
                     "chunk": 1,
                     "score": .32,
                 })
-    return rows[:top_k]
+    return enrich_source_pages(rows[:top_k])
