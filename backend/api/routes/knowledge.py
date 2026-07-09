@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
 from core.security import require_teacher
 from services.document_service import (
     add_document,
     delete_document,
+    generate_document_preview,
     get_document,
     get_preview_path,
     list_documents,
@@ -43,17 +44,19 @@ def preview_document(document_id: str):
 
 @router.post("/upload")
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Form("课程资料"),
     _: None = Depends(require_teacher),
 ):
     item = await add_document(file, category)
+    background_tasks.add_task(generate_document_preview, item["id"])
     public_item = {
         key: value
         for key, value in item.items()
         if key not in {"content", "stored_path", "preview_path"}
     } | {"has_preview": bool(item.get("preview_path"))}
-    return {"message": "上传、解析并建立向量索引成功", "item": public_item}
+    return {"message": "上传、解析并建立向量索引成功，预览正在后台生成", "item": public_item}
 
 
 @router.post("/reindex")
