@@ -32,11 +32,60 @@ function Knowledge({user}) {
   const [docs,setDocs]=useState([]),[selected,setSelected]=useState(null),[uploading,setUploading]=useState(false),[reindexing,setReindexing]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[uploadName,setUploadName]=useState(''),[msg,setMsg]=useState('');
   const load=()=>request('/knowledge').then(d=>setDocs(d.items));
   useEffect(load,[]);
+  useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(load,3000);return()=>clearInterval(timer)},[docs]);
+  useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
   const view=async id=>{try{setSelected(await request('/knowledge/'+id))}catch(e){setMsg(e.message)}};
-  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage('正在解析文档并生成版式预览');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage('处理完成');setMsg(data.message||'上传成功');load();setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
+  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage('正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage('上传完成，预览后台处理中');setMsg(data.message||'上传成功，预览正在后台生成');load();setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
   const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load()};
   const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load()}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
-  return <><section className="knowledge-head"><div><span className="eyebrow"><Database size={15}/>{isTeacher?'知识中枢':'课程资源'}</span><h1>{isTeacher?'课程知识库':'我的课程资料'}</h1><p>{isTeacher?'上传、查看和管理课程资料，文件会自动建立向量索引。':'查看教师上传的课程文档，选择资料即可阅读解析后的正文。'}</p></div>{isTeacher&&<div className="knowledge-actions"><button className="secondary-btn" onClick={reindex} disabled={reindexing||uploading}><Sparkles/>{reindexing?'正在重建…':'重建向量索引'}</button><label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf" onChange={upload} disabled={uploading}/></label></div>}</section>{uploading&&<div className="upload-progress"><div className="progress-file"><i><FileText/></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{width:progress+'%'}}/></div></div>}{msg&&<div className="notice">{msg}</div>}<div className="kb-summary"><div><Database/><span><b>{docs.length}</b><small>知识文档</small></span></div><div><FileText/><span><b>{docs.reduce((n,d)=>n+d.chunks,0)}</b><small>向量片段</small></span></div><div><Sparkles/><span><b>向量检索</b><small>资料状态</small></span></div></div><section className="panel table-panel"><div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF</p></div></div><div className="doc-table"><div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>操作</span></div>{docs.map(d=><div className="tr" key={d.id}><span className="doc-name"><i><FileText/></i><b>{d.name}<small>{d.size} KB</small></b></span><span><em className="tag">{d.type}</em></span><span>{d.chunks}</span><span>{d.created_at}</span><span className="doc-actions"><button className="view-doc" onClick={()=>view(d.id)}><BookOpen/>查看</button>{isTeacher&&<button className="trash" onClick={()=>del(d.id)}><Trash2/></button>}</span></div>)}</div></section>{selected&&<section className="panel document-reader"><div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB</p></div><button onClick={()=>setSelected(null)}><X/></button></div>{selected.has_preview?<iframe className="document-frame" src={`${API}/knowledge/${selected.id}/preview`} title={selected.name}/>:<div className="no-preview"><AlertCircle/><b>暂无原版式预览</b><p>{selected.preview_error||'该文件已完成文本解析和向量入库，但 Office 未能生成 PDF 版式预览。下方为解析出的知识库文本，可正常用于检索、问答和出题。'}</p><pre>{selected.content}</pre></div>}</section>}</>
+  const previewText=d=>d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
+  const canPreview=d=>d.has_preview||d.preview_status==='ready';
+  return <>
+    <section className="knowledge-head">
+      <div>
+        <span className="eyebrow"><Database size={15}/>{isTeacher?'知识中枢':'课程资源'}</span>
+        <h1>{isTeacher?'课程知识库':'我的课程资料'}</h1>
+        <p>{isTeacher?'上传、查看和管理课程资料，文件会自动建立向量索引，原版式预览会在后台生成。':'查看教师上传的课程文档，预览处理完成后即可打开原版式资料。'}</p>
+      </div>
+      {isTeacher&&<div className="knowledge-actions">
+        <button className="secondary-btn" onClick={reindex} disabled={reindexing||uploading}><Sparkles/>{reindexing?'正在重建…':'重建向量索引'}</button>
+        <label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf" onChange={upload} disabled={uploading}/></label>
+      </div>}
+    </section>
+
+    {uploading&&<div className="upload-progress"><div className="progress-file"><i><FileText/></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{width:progress+'%'}}/></div></div>}
+    {msg&&<div className="notice">{msg}</div>}
+
+    <div className="kb-summary">
+      <div><Database/><span><b>{docs.length}</b><small>知识文档</small></span></div>
+      <div><FileText/><span><b>{docs.reduce((n,d)=>n+d.chunks,0)}</b><small>向量片段</small></span></div>
+      <div><Sparkles/><span><b>{docs.filter(d=>d.preview_status==='processing').length}</b><small>预览处理中</small></span></div>
+    </div>
+
+    <section className="panel table-panel">
+      <div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF</p></div></div>
+      <div className="doc-table">
+        <div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>预览</span></div>
+        {docs.map(d=><div className="tr" key={d.id}>
+          <span className="doc-name"><i><FileText/></i><b>{d.name}<small>{d.size} KB</small></b></span>
+          <span><em className="tag">{d.type}</em></span>
+          <span>{d.chunks}</span>
+          <span>{d.created_at}</span>
+          <span className="doc-actions">
+            <button className={'view-doc preview-action '+(d.preview_status||'')} onClick={()=>view(d.id)} disabled={!canPreview(d)}>{canPreview(d)?<CheckCircle2/>:<AlertCircle/>}{previewText(d)}</button>
+            {isTeacher&&<button className="trash" onClick={()=>del(d.id)}><Trash2/></button>}
+          </span>
+        </div>)}
+      </div>
+    </section>
+
+    {selected&&<section className="panel document-reader">
+      <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
+      {selected.has_preview
+        ? <iframe className="document-frame" src={`${API}/knowledge/${selected.id}/preview`} title={selected.name}/>
+        : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
+    </section>}
+  </>
 }
 
 function Analysis({role}){

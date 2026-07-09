@@ -29,16 +29,6 @@ async def add_document(file: UploadFile, category: str) -> dict:
             "文件中未提取到可用于知识库的文字。请上传可复制文字的文档；如果是扫描版 PDF 或图片型 PPT，请先 OCR 识别后再上传。",
         )
 
-    preview_path = ""
-    preview_error = ""
-    preview = settings.upload_dir / f"{target.stem}-preview.pdf"
-    try:
-        create_pdf_preview(target, preview)
-        preview_path = preview.name
-    except HTTPException as exc:
-        preview_error = str(exc.detail)
-        preview.unlink(missing_ok=True)
-
     item = {
         "id": uuid.uuid4().hex[:10],
         "name": Path(filename).stem,
@@ -48,8 +38,9 @@ async def add_document(file: UploadFile, category: str) -> dict:
         "content": content[:200000],
         "extension": suffix.lstrip(".").upper(),
         "stored_path": target.name,
-        "preview_path": preview_path,
-        "preview_error": preview_error,
+        "preview_path": "",
+        "preview_status": "processing",
+        "preview_error": "",
     }
 
     await index_document(item)
@@ -57,6 +48,54 @@ async def add_document(file: UploadFile, category: str) -> dict:
     data["documents"].insert(0, item)
     store.save(data)
     return item
+
+
+def generate_document_preview(document_id: str) -> None:
+    data = store.load()
+    document = next((item for item in data["documents"] if item["id"] == document_id), None)
+    if not document:
+        return
+
+    stored_path = document.get("stored_path")
+    if not stored_path:
+        return
+
+    target = settings.upload_dir / stored_path
+    preview = settings.upload_dir / f"{target.stem}-preview.pdf"
+    document["preview_status"] = "processing"
+    document["preview_error"] = ""
+    store.save(data)
+
+    try:
+        create_pdf_preview(target, preview)
+    except HTTPException as exc:
+        data = store.load()
+        document = next((item for item in data["documents"] if item["id"] == document_id), None)
+        if document:
+            document["preview_path"] = ""
+            document["preview_status"] = "failed"
+            document["preview_error"] = str(exc.detail)
+            store.save(data)
+        preview.unlink(missing_ok=True)
+        return
+    except Exception as exc:
+        data = store.load()
+        document = next((item for item in data["documents"] if item["id"] == document_id), None)
+        if document:
+            document["preview_path"] = ""
+            document["preview_status"] = "failed"
+            document["preview_error"] = f"预览生成失败：{exc}"
+            store.save(data)
+        preview.unlink(missing_ok=True)
+        return
+
+    data = store.load()
+    document = next((item for item in data["documents"] if item["id"] == document_id), None)
+    if document:
+        document["preview_path"] = preview.name
+        document["preview_status"] = "ready"
+        document["preview_error"] = ""
+        store.save(data)
 
 
 def list_documents() -> list[dict]:
@@ -68,6 +107,7 @@ def list_documents() -> list[dict]:
         } | {
             "chunks": len(split_chunks(item["content"])),
             "has_preview": bool(item.get("preview_path")),
+            "preview_status": item.get("preview_status") or ("ready" if item.get("preview_path") else "failed"),
         }
         for item in store.load()["documents"]
     ]
@@ -84,6 +124,10 @@ def get_preview_path(document_id: str) -> Path:
     document = get_document(document_id)
     filename = document.get("preview_path")
     if not filename:
+        if document.get("preview_status") == "processing":
+            raise HTTPException(409, "预览正在后台生成中，请稍后再试。")
+        if document.get("preview_status") == "failed":
+            raise HTTPException(404, document.get("preview_error") or "预览生成失败。")
         raise HTTPException(404, "该资料没有原文版式预览，但仍可用于知识库检索和问答。")
     path = (settings.upload_dir / filename).resolve()
     if settings.upload_dir.resolve() not in path.parents or not path.is_file():
