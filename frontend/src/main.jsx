@@ -1,8 +1,9 @@
 ﻿import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X} from 'lucide-react';
+import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X, Eye, Video, Music, File} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import './styles.css';
+import { RefreshCw } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const requestCache=new Map();
@@ -163,11 +164,61 @@ const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','
 const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);const page=slugPage[slug];return pathRole===role&&page&&navs[role].some(item=>item[0]===page)?page:'dashboard'}
-function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><ErrorBoundary resetKey={page}>
-  <div className="content">
-    {page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='grading'?<TeacherGrading/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}
-  </div>
-</ErrorBoundary></main></div>}
+function Shell({ user, onLogout }) {
+  const [page, setPageState] = useState(() => initialPage(user.role)), [open, setOpen] = useState(false); const setPage = (next) => { setPageState(next); history.pushState({}, '', `/${user.role}/${pageSlug[next]}`) }; useEffect(() => { const pop = () => setPageState(initialPage(user.role)); addEventListener('popstate', pop); return () => removeEventListener('popstate', pop) }, [user.role]); const title = navs[user.role].find(n => n[0] === page)?.[1]; return <div className="app"><aside className={open ? 'open' : ''}><div className="logo"><div className="brand-mark"><GraduationCap /></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={() => setOpen(false)}><X /></button></div><div className="side-label">{user.role === 'teacher' ? '教师工作台' : '学习空间'}</div><nav>{navs[user.role].map(([id, label, Icon]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => { setPage(id); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-user"><CircleUserRound /><span><b>{user.name}</b><small>{user.role === 'teacher' ? '计算机网络 · 教师' : '计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut /></button></div></aside><main>
+    <header>
+      <button className="hamburger" onClick={() => setOpen(true)}><Menu /></button>
+      <div style={{ flex: 1 }}>
+        <div>
+          <small>{user.role === 'teacher' ? '教师工作台' : '我的学习空间'}</small>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+            {/* 方案二：标题前加装饰图标 */}
+            <span style={{ fontSize: '18px' }}>
+              {page === 'dashboard' && '📊'}
+              {page === 'knowledge' && '📚'}
+              {page === 'exams' && '📝'}
+              {page === 'wrongbook' && '📒'}
+              {page === 'chat' && '💬'}
+              {page === 'analysis' && '📈'}
+            </span>
+            {title}
+          </h2>
+        </div>
+      </div>
+
+      {/* 方案四：刷新按钮 — 靠近用户那一侧 */}
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: '#9aa2b0',
+          padding: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          borderRadius: '6px',
+          transition: 'all 0.2s',
+          marginRight: '12px',  // 与用户头像间隔一点距离
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = '#f0f2f5'; e.currentTarget.style.color = '#5c74e4'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9aa2b0'; }}
+        title="刷新当前页面"
+      >
+        <RefreshCw size={18} />
+      </button>
+
+      <div className="header-user">
+        <span>{user.name.slice(0, 1)}</span>
+        <b>{user.name}</b>
+      </div>
+    </header>
+    <ErrorBoundary resetKey={page}>
+      <div className="content">
+        {page === 'dashboard' ? <Dashboard user={user} go={setPage} /> : page === 'chat' ? <Chat user={user} /> : page === 'knowledge' ? <Knowledge user={user} /> : page === 'exams' ? <Exams user={user} /> : page === 'grading' ? <TeacherGrading /> : page === 'wrongbook' ? <Wrongbook user={user} /> : <Analysis role={user.role} />}
+      </div>
+    </ErrorBoundary></main></div>
+}
 class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error){sessionStorage.removeItem('mainrag-error-refreshing');this.setState({error:null})}}componentDidCatch(){if(!sessionStorage.getItem('mainrag-error-refreshing')){sessionStorage.setItem('mainrag-error-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-error-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
 
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
@@ -385,92 +436,102 @@ function Chat({user}){
   return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
 }
 
-function Knowledge({user}) {
-  const isTeacher=user.role==='teacher';
-  const [docs,setDocs]=useState([]),[selected,setSelected]=useState(null),[uploading,setUploading]=useState(false),[reindexing,setReindexing]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[uploadName,setUploadName]=useState(''),[msg,setMsg]=useState('');
-  const [targetPage,setTargetPage]=useState('');
-  const [targetTime,setTargetTime]=useState(null);
-  const [activeCaption,setActiveCaption]=useState(-1);
-  const mediaRef=useRef(null);
-  const captionListRef=useRef(null);
-  const load=(fresh=false)=>request('/knowledge',{cache:!fresh}).then(d=>setDocs(d.items));
-  useEffect(load,[]);
-  useEffect(()=>{const params=new URLSearchParams(location.search);const target=params.get('doc');const page=params.get('page')||'';const start=params.get('start');setTargetPage(page);setTargetTime(start!==null&&start!==''?Number(start):null);if(target)view(target,page)},[]);
-  useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(()=>load(true),3000);return()=>clearInterval(timer)},[docs]);
-  useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id,{cache:false}).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
-  useEffect(()=>{const player=mediaRef.current;if(!player||targetTime===null||Number.isNaN(targetTime))return;const seek=()=>{player.currentTime=Math.max(0,targetTime);player.play().catch(()=>setMsg(`已定位到 ${formatSourceTime(targetTime)}，如未自动播放请点击播放器。`))};if(player.readyState>=1)seek();else player.addEventListener('loadedmetadata',seek,{once:true});return()=>player.removeEventListener('loadedmetadata',seek)},[selected,targetTime]);
-  const captions=useMemo(()=>selected?.source_kind==='media'?parseMediaCaptions(selected.content):[],[selected]);
-  useEffect(()=>{setActiveCaption(-1)},[selected?.id]);
-  useEffect(()=>{const player=mediaRef.current;if(!player||!captions.length)return;const update=()=>{const time=player.currentTime;const index=captions.findIndex(item=>time>=item.start&&time<Math.max(item.end,item.start+.5));setActiveCaption(index)};player.addEventListener('timeupdate',update);player.addEventListener('seeked',update);update();return()=>{player.removeEventListener('timeupdate',update);player.removeEventListener('seeked',update)}},[captions,selected]);
-  useEffect(()=>{if(activeCaption<0||!captionListRef.current)return;const item=captionListRef.current.querySelector(`[data-caption-index="${activeCaption}"]`);item?.scrollIntoView({block:'center',behavior:'smooth'})},[activeCaption]);
-  const view=async(id,page='')=>{try{setTargetPage(page);setSelected(await request('/knowledge/'+id))}catch(e){setMsg(e.message)}};
-  const download=d=>{window.open(`${API}/knowledge/${d.id}/download`,'_blank')};
-  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';const isMedia=/\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name);setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage(isMedia?'正在转写音视频并建立向量索引':'正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage(isMedia?'上传完成，音视频已转写入库':'上传完成，预览后台处理中');setMsg(data.message||(isMedia?'上传成功，音视频已转写并可用于检索问答':'上传成功，预览正在后台生成'));load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
-  const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load(true)};
-  const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load(true)}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
-  const previewText=d=>d.source_kind==='media'?'可播放':d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
-  const canPreview=d=>d.source_kind==='media'||d.has_preview||d.preview_status==='ready';
-  const fileExt=d=>{
-    const raw=((d?.extension||'')+'').replace(/^\./,'').toUpperCase();
-    if(raw)return raw;
-    const match=((d?.name||d?.stored_path||'')+'').match(/\.([a-z0-9]+)$/i);
-    return match?match[1].toUpperCase():'';
+function Knowledge({ user }) {
+  const isTeacher = user.role === 'teacher';
+  const [docs, setDocs] = useState([]), [selected, setSelected] = useState(null), [uploading, setUploading] = useState(false), [reindexing, setReindexing] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [uploadName, setUploadName] = useState(''), [msg, setMsg] = useState('');
+  const [targetPage, setTargetPage] = useState('');
+  const [targetTime, setTargetTime] = useState(null);
+  const [activeCaption, setActiveCaption] = useState(-1);
+  const mediaRef = useRef(null);
+  const captionListRef = useRef(null);
+  const load = (fresh = false) => request('/knowledge', { cache: !fresh }).then(d => setDocs(d.items));
+  useEffect(load, []);
+  useEffect(() => { const params = new URLSearchParams(location.search); const target = params.get('doc'); const page = params.get('page') || ''; const start = params.get('start'); setTargetPage(page); setTargetTime(start !== null && start !== '' ? Number(start) : null); if (target) view(target, page) }, []);
+  useEffect(() => { if (!docs.some(d => d.preview_status === 'processing')) return; const timer = setInterval(() => load(true), 3000); return () => clearInterval(timer) }, [docs]);
+  useEffect(() => { if (!selected || selected.preview_status !== 'processing') return; const timer = setInterval(() => request('/knowledge/' + selected.id, { cache: false }).then(setSelected).catch(() => { }), 3000); return () => clearInterval(timer) }, [selected]);
+  useEffect(() => { const player = mediaRef.current; if (!player || targetTime === null || Number.isNaN(targetTime)) return; const seek = () => { player.currentTime = Math.max(0, targetTime); player.play().catch(() => setMsg(`已定位到 ${formatSourceTime(targetTime)}，如未自动播放请点击播放器。`)) }; if (player.readyState >= 1) seek(); else player.addEventListener('loadedmetadata', seek, { once: true }); return () => player.removeEventListener('loadedmetadata', seek) }, [selected, targetTime]);
+  const captions = useMemo(() => selected?.source_kind === 'media' ? parseMediaCaptions(selected.content) : [], [selected]);
+  useEffect(() => { setActiveCaption(-1) }, [selected?.id]);
+  useEffect(() => { const player = mediaRef.current; if (!player || !captions.length) return; const update = () => { const time = player.currentTime; const index = captions.findIndex(item => time >= item.start && time < Math.max(item.end, item.start + .5)); setActiveCaption(index) }; player.addEventListener('timeupdate', update); player.addEventListener('seeked', update); update(); return () => { player.removeEventListener('timeupdate', update); player.removeEventListener('seeked', update) } }, [captions, selected]);
+  useEffect(() => { if (activeCaption < 0 || !captionListRef.current) return; const item = captionListRef.current.querySelector(`[data-caption-index="${activeCaption}"]`); item?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }, [activeCaption]);
+  const view = async (id, page = '') => { try { setTargetPage(page); setSelected(await request('/knowledge/' + id)) } catch (e) { setMsg(e.message) } };
+  const download = d => { window.open(`${API}/knowledge/${d.id}/download`, '_blank') };
+  const upload = e => { const file = e.target.files[0]; if (!file) return; e.target.value = ''; const isMedia = /\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name); setUploading(true); setProgress(0); setStage('正在上传文件'); setUploadName(file.name); setMsg(''); const fd = new FormData(); fd.append('file', file); fd.append('category', '课程资料'); const xhr = new XMLHttpRequest(); let timer; xhr.open('POST', API + '/knowledge/upload'); xhr.setRequestHeader('X-Role', 'teacher'); xhr.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 65)) }; xhr.upload.onload = () => { setProgress(p => Math.max(p, 66)); setStage(isMedia ? '正在转写音视频并建立向量索引' : '正在解析文档并建立向量索引'); timer = setInterval(() => setProgress(p => p < 94 ? p + 1 : p), 700) }; xhr.onload = () => { clearInterval(timer); let data = {}; try { data = JSON.parse(xhr.responseText) } catch { } if (xhr.status >= 200 && xhr.status < 300) { setProgress(100); setStage(isMedia ? '上传完成，音视频已转写入库' : '上传完成，预览后台处理中'); setMsg(data.message || (isMedia ? '上传成功，音视频已转写并可用于检索问答' : '上传成功，预览正在后台生成')); load(true); setTimeout(() => setUploading(false), 800) } else { setUploading(false); setMsg(data.detail || '上传处理失败') } }; xhr.onerror = () => { clearInterval(timer); setUploading(false); setMsg('网络错误，上传失败') }; xhr.send(fd) };
+  const del = async id => { if (!confirm('确定删除这份资料吗？')) return; await request('/knowledge/' + id, { method: 'DELETE' }); if (selected?.id === id) setSelected(null); load(true) };
+  const reindex = async () => { setReindexing(true); setMsg(''); try { const d = await post('/knowledge/reindex', {}); setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`); load(true) } catch (e) { setMsg(e.message) } finally { setReindexing(false) } };
+  const previewText = d => d.source_kind === 'media' ? '可播放' : d.preview_status === 'processing' ? '正在处理预览' : (d.has_preview || d.preview_status === 'ready') ? '可查看' : d.preview_status === 'failed' ? '预览失败' : '暂无预览';
+  const canPreview = d => d.source_kind === 'media' || d.has_preview || d.preview_status === 'ready';
+  const fileExt = d => {
+    const raw = ((d?.extension || '') + '').replace(/^\./, '').toUpperCase();
+    if (raw) return raw;
+    const match = ((d?.name || d?.stored_path || '') + '').match(/\.([a-z0-9]+)$/i);
+    return match ? match[1].toUpperCase() : '';
   };
-  const isVideo=d=>['MP4','MOV','AVI','MKV','WEBM','WMV','FLV','M4V'].includes(fileExt(d))||/^video\//i.test((d?.mime_type||d?.media_type||d?.type||'')+'');
-  const isAudio=d=>['MP3','WAV','M4A','AAC','FLAC','OGG','WMA','OPUS'].includes(fileExt(d))||/^audio\//i.test((d?.mime_type||d?.media_type||d?.type||'')+'');
-  const fileTypeLabel=d=>isVideo(d)?'视频':isAudio(d)?'音频':(fileExt(d)||((d?.type||'资料')+'').toUpperCase());
-  const fileTypeClass=d=>isVideo(d)?'video':isAudio(d)?'audio':['PPT','PPTX'].includes(fileExt(d))?'ppt':['DOC','DOCX'].includes(fileExt(d))?'word':fileExt(d)==='PDF'?'pdf':'other';
-  const jumpCaption=item=>{const player=mediaRef.current;if(!player)return;player.currentTime=Math.max(0,item.start);player.play().catch(()=>{})};
-  const captionPanel=captions.length>0&&<div className="caption-panel"><div className="caption-head"><b>滚动字幕</b><span>{activeCaption>=0?`${formatSourceTime(captions[activeCaption].start)} - ${formatSourceTime(captions[activeCaption].end)}`:'播放时自动定位'}</span></div><div className="caption-list" ref={captionListRef}>{captions.map((item,index)=><button type="button" data-caption-index={index} className={index===activeCaption?'active':''} key={`${item.start}-${index}`} onClick={()=>jumpCaption(item)}><em>{formatSourceTime(item.start)}</em><span>{item.text}</span></button>)}</div></div>;
+  const isVideo = d => ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'WMV', 'FLV', 'M4V'].includes(fileExt(d)) || /^video\//i.test((d?.mime_type || d?.media_type || d?.type || '') + '');
+  const isAudio = d => ['MP3', 'WAV', 'M4A', 'AAC', 'FLAC', 'OGG', 'WMA', 'OPUS'].includes(fileExt(d)) || /^audio\//i.test((d?.mime_type || d?.media_type || d?.type || '') + '');
+  const fileTypeLabel = d => isVideo(d) ? '视频' : isAudio(d) ? '音频' : (fileExt(d) || ((d?.type || '资料') + '').toUpperCase());
+  const fileTypeClass = d => isVideo(d) ? 'video' : isAudio(d) ? 'audio' : ['PPT', 'PPTX'].includes(fileExt(d)) ? 'ppt' : ['DOC', 'DOCX'].includes(fileExt(d)) ? 'word' : fileExt(d) === 'PDF' ? 'pdf' : 'other';
+  const jumpCaption = item => { const player = mediaRef.current; if (!player) return; player.currentTime = Math.max(0, item.start); player.play().catch(() => { }) };
+  const captionPanel = captions.length > 0 && <div className="caption-panel"><div className="caption-head"><b>滚动字幕</b><span>{activeCaption >= 0 ? `${formatSourceTime(captions[activeCaption].start)} - ${formatSourceTime(captions[activeCaption].end)}` : '播放时自动定位'}</span></div><div className="caption-list" ref={captionListRef}>{captions.map((item, index) => <button type="button" data-caption-index={index} className={index === activeCaption ? 'active' : ''} key={`${item.start}-${index}`} onClick={() => jumpCaption(item)}><em>{formatSourceTime(item.start)}</em><span>{item.text}</span></button>)}</div></div>;
   return <>
     <section className="knowledge-head">
       <div>
-        <span className="eyebrow"><Database size={15}/>{isTeacher?'知识中枢':'课程资源'}</span>
-        <h1>{isTeacher?'课程知识库':'我的课程资料'}</h1>
-        <p>{isTeacher?'上传、查看和管理课程资料，文件会自动建立向量索引，原版式预览会在后台生成。':'查看教师上传的课程文档，预览处理完成后即可打开原版式资料。'}</p>
+        <span className="eyebrow"><Database size={15} />{isTeacher ? '知识中枢' : '课程资源'}</span>
+        <h1>{isTeacher ? '课程知识库' : '我的课程资料'}</h1>
+        <p>{isTeacher ? '上传、查看和管理课程资料，文件会自动建立向量索引，原版式预览会在后台生成。' : '查看教师上传的课程文档，预览处理完成后即可打开原版式资料。'}</p>
       </div>
-      {isTeacher&&<div className="knowledge-actions">
-        <button className="secondary-btn" onClick={reindex} disabled={reindexing||uploading}><Sparkles/>{reindexing?'正在重建…':'重建向量索引'}</button>
-        <label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf,.mp3,.wav,.m4a,.aac,.flac,.ogg,.wma,.mp4,.mov,.avi,.mkv,.webm,.wmv,.flv" onChange={upload} disabled={uploading}/></label>
+      {isTeacher && <div className="knowledge-actions">
+        <button className="secondary-btn" onClick={reindex} disabled={reindexing || uploading}><Sparkles />{reindexing ? '正在重建…' : '重建向量索引'}</button>
+        <label className="primary upload-btn"><Upload />{uploading ? '正在处理…' : '上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf,.mp3,.wav,.m4a,.aac,.flac,.ogg,.wma,.mp4,.mov,.avi,.mkv,.webm,.wmv,.flv" onChange={upload} disabled={uploading} /></label>
       </div>}
     </section>
 
-    {uploading&&<div className="upload-progress"><div className="progress-file"><i><FileText/></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{width:progress+'%'}}/></div></div>}
-    {msg&&<div className="notice">{msg}</div>}
+    {uploading && <div className="upload-progress"><div className="progress-file"><i><FileText /></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{ width: progress + '%' }} /></div></div>}
+    {msg && <div className="notice">{msg}</div>}
 
     <div className="kb-summary">
-      <div><Database/><span><b>{docs.length}</b><small>知识文档</small></span></div>
-      <div><FileText/><span><b>{docs.reduce((n,d)=>n+d.chunks,0)}</b><small>向量片段</small></span></div>
-      <div><Sparkles/><span><b>{docs.filter(d=>d.preview_status==='processing').length}</b><small>预览处理中</small></span></div>
+      <div><Database /><span><b>{docs.length}</b><small>知识文档</small></span></div>
+      <div><FileText /><span><b>{docs.reduce((n, d) => n + d.chunks, 0)}</b><small>向量片段</small></span></div>
+      <div><Sparkles /><span><b>{docs.filter(d => d.preview_status === 'processing').length}</b><small>预览处理中</small></span></div>
     </div>
 
     <section className="panel table-panel">
-      <div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频</p></div></div>
+      <div className="panel-head"><div><h3>{isTeacher ? '全部资料' : '教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频</p></div></div>
       <div className="doc-table">
         <div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>预览</span></div>
-        {docs.map(d=><div className="tr" key={d.id}>
-          <span className="doc-name"><i><FileText/></i><b>{d.name}<small>{d.size} KB</small></b></span>
-          <span><em className={'tag file-type '+fileTypeClass(d)}>{fileTypeLabel(d)}</em></span>
+        {docs.map(d => <div className="tr" key={d.id}>
+          <span className="doc-name"><i><FileText /></i><b>{d.name}<small>{d.size} KB</small></b></span>
+          <span>
+            <em className={`tag file-type ${fileTypeClass(d)}`}>
+              {fileTypeLabel(d) === 'PDF' && <File size={12} style={{ marginRight: 4 }} />}
+              {['PPT', 'PPTX'].includes(fileExt(d)) && <File size={12} style={{ marginRight: 4 }} />}
+              {['DOC', 'DOCX'].includes(fileExt(d)) && <FileText size={12} style={{ marginRight: 4 }} />}
+              {fileTypeLabel(d) === '视频' && <Video size={12} style={{ marginRight: 4 }} />}
+              {fileTypeLabel(d) === '音频' && <Music size={12} style={{ marginRight: 4 }} />}
+              {!['PDF', 'PPT', 'PPTX', 'DOC', 'DOCX', '视频', '音频'].includes(fileTypeLabel(d)) && <File size={12} style={{ marginRight: 4 }} />}
+              {fileTypeLabel(d)}
+            </em>
+          </span>
           <span>{d.chunks}</span>
           <span>{d.created_at}</span>
           <span className="doc-actions">
-            <button className={'view-doc preview-action '+(d.preview_status||'')} onClick={()=>view(d.id)} disabled={!canPreview(d)}>{canPreview(d)?<CheckCircle2/>:<AlertCircle/>}{previewText(d)}</button>
-            <button className="download-doc" onClick={()=>download(d)} title="下载原始资料"><Upload/>下载</button>
-            {isTeacher&&<button className="trash" onClick={()=>del(d.id)}><Trash2/></button>}
+            <button className={'view-doc preview-action ' + (d.preview_status || '')} onClick={() => view(d.id)} disabled={!canPreview(d)}>{canPreview(d) ? <Eye size={14} /> : <AlertCircle />}{previewText(d)}</button>
+            <button className="download-doc" onClick={() => download(d)} title="下载原始资料"><Upload />下载</button>
+            {isTeacher && <button className="trash" onClick={() => del(d.id)}><Trash2 /></button>}
           </span>
         </div>)}
       </div>
     </section>
 
-    {selected&&<section className="panel document-reader">
-      <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage?` · 已定位到第 ${targetPage} 页`:''}{targetTime!==null&&!Number.isNaN(targetTime)?` · 已定位到 ${formatSourceTime(targetTime)}`:''}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
-      {selected.source_kind==='media'&&isVideo(selected)
-        ? <div className="media-preview"><video ref={mediaRef} key={`${selected.id}-${targetTime??'top'}`} className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime!==null&&!Number.isNaN(targetTime)?`#t=${Math.max(0,targetTime)}`:''}`} title={selected.name}/>{captionPanel}</div>
-        : selected.source_kind==='media'&&isAudio(selected)
-          ? <div className="media-preview"><div className="audio-preview"><FileText/><b>{selected.name}</b><audio ref={mediaRef} key={`${selected.id}-${targetTime??'top'}`} className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime!==null&&!Number.isNaN(targetTime)?`#t=${Math.max(0,targetTime)}`:''}`}/></div>{captionPanel}</div>
+    {selected && <section className="panel document-reader">
+      <div className="reader-head"><div><span className="eyebrow"><FileText size={14} />{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage ? ` · 已定位到第 ${targetPage} 页` : ''}{targetTime !== null && !Number.isNaN(targetTime) ? ` · 已定位到 ${formatSourceTime(targetTime)}` : ''}</p></div><button onClick={() => setSelected(null)}><X /></button></div>
+      {selected.source_kind === 'media' && isVideo(selected)
+        ? <div className="media-preview"><video ref={mediaRef} key={`${selected.id}-${targetTime ?? 'top'}`} className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime !== null && !Number.isNaN(targetTime) ? `#t=${Math.max(0, targetTime)}` : ''}`} title={selected.name} />{captionPanel}</div>
+        : selected.source_kind === 'media' && isAudio(selected)
+          ? <div className="media-preview"><div className="audio-preview"><FileText /><b>{selected.name}</b><audio ref={mediaRef} key={`${selected.id}-${targetTime ?? 'top'}`} className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime !== null && !Number.isNaN(targetTime) ? `#t=${Math.max(0, targetTime)}` : ''}`} /></div>{captionPanel}</div>
           : selected.has_preview
-            ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
-            : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
+            ? <iframe key={`${selected.id}-${targetPage || 'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage ? `#page=${targetPage}&zoom=page-width` : ''}`} title={selected.name} />
+            : <div className="no-preview"><AlertCircle /><b>{selected.preview_status === 'processing' ? '原版式预览正在处理中' : '暂无原版式预览'}</b><p>{selected.preview_status === 'processing' ? '上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。' : (selected.preview_error || '该文件暂时没有可查看的原版式预览。')}</p></div>}
     </section>}
   </>
 }
