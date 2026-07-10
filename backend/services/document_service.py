@@ -161,6 +161,21 @@ def get_media_path(document_id: str) -> Path:
     return path
 
 
+def get_download_path(document_id: str) -> tuple[Path, str]:
+    document = get_document(document_id)
+    stored_path = document.get("stored_path")
+    if not stored_path:
+        raise HTTPException(404, "原始文件不存在。")
+
+    path = (settings.upload_dir / stored_path).resolve()
+    if settings.upload_dir.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(404, "原始文件不存在。")
+
+    suffix = path.suffix or f".{str(document.get('extension') or '').lower()}"
+    filename = f"{document.get('name') or path.stem}{suffix}"
+    return path, filename
+
+
 def delete_document(document_id: str) -> None:
     data = store.load()
     document = next((item for item in data["documents"] if item["id"] == document_id), None)

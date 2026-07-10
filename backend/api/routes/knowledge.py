@@ -9,6 +9,7 @@ from services.document_service import (
     delete_document,
     generate_document_preview,
     get_document,
+    get_download_path,
     get_media_path,
     get_preview_path,
     list_documents,
@@ -54,6 +55,18 @@ def preview_media(document_id: str):
         media_type=media_type,
         content_disposition_type="inline",
         filename=path.name,
+    )
+
+
+@router.get("/{document_id}/download")
+def download_document(document_id: str):
+    path, filename = get_download_path(document_id)
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return FileResponse(
+        path,
+        media_type=media_type,
+        content_disposition_type="attachment",
+        filename=filename,
     )
 
 
