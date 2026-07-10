@@ -230,3 +230,54 @@ python -m pip install chromadb==0.5.23
 ???????????????????????????????????????????? ChromaDB?
 
 `backend/data/chroma/`?`backend/data/vector_store.json`?`backend/models/`?`backend/uploads/` ????????????????????
+
+## 拍照搜题功能
+
+问答助手中已加入拍照搜题入口。学生可以在问答输入框左侧点击相机按钮，上传题目图片或在手机端直接调用摄像头拍照。
+
+处理流程：
+
+```text
+题目图片
+  → OCR 识别题干和选项
+  → 清洗识别文本
+  → 使用识别出的题目文本检索课程知识库
+  → 将检索片段作为上下文调用 DeepSeek
+  → 返回答案、解析和可追溯参考来源
+```
+
+后端接口：
+
+```text
+POST /api/chat/photo-search
+```
+
+该接口会接收图片文件，返回 OCR 识别文本、AI 解题结果和知识库来源，并把本次拍照搜题记录写入历史问答。
+
+拍照搜题需要额外安装 OCR 依赖，二选一即可：
+
+```powershell
+# 推荐：中文题目识别效果更好
+python -m pip install paddleocr paddlepaddle
+
+# 或者：Tesseract 方案，需要额外安装系统版 Tesseract OCR
+python -m pip install pillow pytesseract
+```
+
+如果没有安装 OCR 依赖，原有知识库问答功能不受影响；点击拍照搜题时后端会返回安装提示。
+
+Windows CPU 环境下，PaddleOCR 3.x 可能会触发 oneDNN/PIR 兼容问题：
+
+```text
+ConvertPirAttribute2RuntimeAttribute not support ... onednn_instruction.cc
+```
+
+项目已在 `services/photo_ocr_service.py` 中默认设置：
+
+```text
+PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT=0
+FLAGS_use_onednn=0
+FLAGS_use_mkldnn=0
+```
+
+并使用较稳定的 `PP-OCRv4` OCR 模型，避免该问题影响拍照搜题。

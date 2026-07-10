@@ -20,3 +20,9 @@ chromadb==0.5.23
 # 音视频知识库转写复用 torch + transformers 加载本地 Whisper 模型。
 # ffmpeg 不是 pip 包，请按 README 使用 conda 安装：
 # conda install -c conda-forge ffmpeg
+
+# 拍照搜题 OCR 可选依赖（二选一即可）：
+# 方案一：中文题目识别推荐 PaddleOCR
+# python -m pip install paddleocr paddlepaddle
+# 方案二：轻量备选 Tesseract，需要额外安装系统版 Tesseract OCR
+# python -m pip install pillow pytesseract
