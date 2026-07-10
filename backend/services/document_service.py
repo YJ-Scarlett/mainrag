@@ -147,6 +147,20 @@ def get_preview_path(document_id: str) -> Path:
     return path
 
 
+def get_media_path(document_id: str) -> Path:
+    document = get_document(document_id)
+    stored_path = document.get("stored_path")
+    if document.get("source_kind") != "media" or not stored_path:
+        raise HTTPException(404, "该资料不是音视频文件。")
+
+    path = (settings.upload_dir / stored_path).resolve()
+    if settings.upload_dir.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(404, "音视频文件不存在。")
+    if path.suffix.lower() not in SUPPORTED_MEDIA_EXTENSIONS:
+        raise HTTPException(404, "该资料不是支持预览的音视频格式。")
+    return path
+
+
 def delete_document(document_id: str) -> None:
     data = store.load()
     document = next((item for item in data["documents"] if item["id"] == document_id), None)

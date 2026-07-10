@@ -387,8 +387,10 @@ function Knowledge({user}) {
   const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';const isMedia=/\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name);setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage(isMedia?'正在转写音视频并建立向量索引':'正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage(isMedia?'上传完成，音视频已转写入库':'上传完成，预览后台处理中');setMsg(data.message||(isMedia?'上传成功，音视频已转写并可用于检索问答':'上传成功，预览正在后台生成'));load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
   const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load(true)};
   const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load(true)}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
-  const previewText=d=>d.source_kind==='media'?'已转写入库':d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
-  const canPreview=d=>d.has_preview||d.preview_status==='ready';
+  const previewText=d=>d.source_kind==='media'?'可播放':d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
+  const canPreview=d=>d.source_kind==='media'||d.has_preview||d.preview_status==='ready';
+  const isVideo=d=>['MP4','MOV','AVI','MKV','WEBM','WMV','FLV'].includes((d?.extension||'').toUpperCase());
+  const isAudio=d=>['MP3','WAV','M4A','AAC','FLAC','OGG','WMA'].includes((d?.extension||'').toUpperCase());
   return <>
     <section className="knowledge-head">
       <div>
@@ -430,9 +432,13 @@ function Knowledge({user}) {
 
     {selected&&<section className="panel document-reader">
       <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage?` · 已定位到第 ${targetPage} 页`:''}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
-      {selected.has_preview
-        ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
-        : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
+      {selected.source_kind==='media'&&isVideo(selected)
+        ? <video className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media`} title={selected.name}/>
+        : selected.source_kind==='media'&&isAudio(selected)
+          ? <div className="audio-preview"><FileText/><b>{selected.name}</b><audio className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media`}/></div>
+          : selected.has_preview
+            ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
+            : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
     </section>}
   </>
 }
