@@ -18,7 +18,6 @@ def hash_password(pwd: str) -> str:
 
 def load_users():
     if not USER_FILE.exists():
-        # 初始化默认账号
         default_users = [
             {"username": "teacher", "password": hash_password("123456"), "name": "陈老师", "role": "teacher"},
             {"username": "student", "password": hash_password("123456"), "name": "张同学", "role": "student"},
@@ -34,10 +33,9 @@ def save_users(users):
 
 # ============ 请求模型 ============
 class RegisterRequest(BaseModel):
-    username: str
+    name: str          # 真实姓名（显示名称）
     password: str
-    role: str  # "student" 或 "teacher"
-    name: str  # 真实姓名
+    role: str          # "student" 或 "teacher"
 
 # ============ 登录接口 ============
 @router.post("/login", tags=["认证"])
@@ -59,14 +57,24 @@ def login(body: LoginRequest):
         }
     }
 
-# ============ 注册接口（新增）============
+# ============ 注册接口（修改后）============
 @router.post("/register", tags=["认证"])
 def register(body: RegisterRequest):
     users = load_users()
-    if any(u["username"] == body.username for u in users):
-        raise HTTPException(400, "用户名已存在")
+    
+    # 根据角色生成 username
+    prefix = "s_" if body.role == "student" else "t_"
+    base_username = f"{prefix}{body.name}"
+    
+    # 处理重名
+    username = base_username
+    counter = 1
+    while any(u["username"] == username for u in users):
+        username = f"{base_username}{counter}"
+        counter += 1
+    
     new_user = {
-        "username": body.username,
+        "username": username,
         "password": hash_password(body.password),
         "name": body.name,
         "role": body.role
@@ -76,7 +84,7 @@ def register(body: RegisterRequest):
     return {
         "message": "注册成功",
         "user": {
-            "username": body.username,
+            "username": username,
             "name": body.name,
             "role": body.role
         }

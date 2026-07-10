@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+﻿import React, {useEffect, useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -16,10 +16,9 @@ function Login({onLogin}) {
   const [loading,setLoading]=useState(false);
   const [mode, setMode] = useState('login'); // 'login' 或 'register'
   const [registerForm, setRegisterForm] = useState({
-    username: '',
+    name: '',
     password: '',
     confirm: '',
-    name: '',
     role: 'student'
   });
 
@@ -36,11 +35,10 @@ function Login({onLogin}) {
   const switchMode = (m) => {
     setMode(m);
     setError('');
-    // 切换到登录时，填充演示账号
     if (m === 'login') {
       setForm({username: role === 'student' ? 'student' : 'teacher', password: '123456'});
     } else {
-      setRegisterForm({username: '', password: '', confirm: '', name: '', role: role});
+      setRegisterForm({name: '', password: '', confirm: '', role: role});
     }
   };
 
@@ -65,22 +63,22 @@ function Login({onLogin}) {
       setError('两次密码输入不一致');
       return;
     }
-    if (!registerForm.username || !registerForm.password || !registerForm.name) {
+    if (!registerForm.name || !registerForm.password) {
       setError('请填写完整信息');
       return;
     }
     setLoading(true);
     try {
       await post('/register', {
-        username: registerForm.username,
+        name: registerForm.name,
         password: registerForm.password,
-        role: registerForm.role,
-        name: registerForm.name
+        role: registerForm.role
       });
       // 注册成功，自动切换到登录并填入账号
       setMode('login');
-      setForm({username: registerForm.username, password: registerForm.password});
-      setError('注册成功，请登录');
+      const autoUsername = registerForm.role === 'student' ? `s_${registerForm.name}` : `t_${registerForm.name}`;
+      setForm({username: autoUsername, password: registerForm.password});
+      setError(`注册成功！你的登录账号是：${autoUsername}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -123,13 +121,10 @@ function Login({onLogin}) {
             <label>密码
               <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
             </label>
-
-            {/* 登录/注册切换按钮 — 在账号密码下方 */}
             <div className="role-tabs" style={{ marginBottom: '12px' }}>
               <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
               <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
             </div>
-
             <button className="primary login-btn" disabled={loading}>
               {loading ? '正在登录…' : '进入知问课堂'}
               <ChevronRight size={18}/>
@@ -138,11 +133,8 @@ function Login({onLogin}) {
           </>
         ) : (
           <>
-            <label>真实姓名
-              <input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="请输入您的姓名" />
-            </label>
-            <label>用户名
-              <input value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value})} placeholder="用于登录的账号" />
+            <label>姓名
+              <input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="请输入您的姓名（作为登录账号）" />
             </label>
             <label>密码
               <input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="至少6位" />
@@ -150,13 +142,10 @@ function Login({onLogin}) {
             <label>确认密码
               <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({...registerForm, confirm: e.target.value})} placeholder="再次输入密码" />
             </label>
-
-            {/* 登录/注册切换按钮 — 在确认密码下方 */}
             <div className="role-tabs" style={{ marginBottom: '12px' }}>
               <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
               <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
             </div>
-
             <button className="primary login-btn" disabled={loading}>
               {loading ? '注册中…' : '注册新账号'}
               <ChevronRight size={18}/>
@@ -335,39 +324,97 @@ function Chat({user}){
   const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource=s=>{if(!s?.document_id)return;location.assign(`/${user.role}/knowledge?doc=${encodeURIComponent(s.document_id)}&page=${encodeURIComponent(s.page||'')}&chunk=${encodeURIComponent(s.chunk||'')}`)};
-  const send=async(q=input)=>{
-    if(!q.trim()||loading)return;
-    const question=q.trim();
-    setActiveHistory('');
-    setMessages(m=>[...m,{role:'user',text:question},{role:'ai',text:'',sources:[],streaming:true}]);
-    setInput('');
-    setLoading(true);
-    try{
-      let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
-      const response=await fetch(API+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',...(role?{'X-Role':role}:{})},body:JSON.stringify({message:question,student:user.name})});
-      if(!response.ok){let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}throw new Error(data.detail||'请求失败')}
-      const reader=response.body.getReader();
-      const decoder=new TextDecoder('utf-8');
-      let buffer='';
-      while(true){
-        const {value,done}=await reader.read();
-        if(done)break;
-        buffer+=decoder.decode(value,{stream:true});
-        const events=buffer.split('\n\n');
-        buffer=events.pop()||'';
-        for(const raw of events){
-          const line=raw.split('\n').find(x=>x.startsWith('data:'));
-          if(!line)continue;
-          const event=JSON.parse(line.slice(5).trim());
-          if(event.type==='delta')appendToLastAi({append:event.content,streaming:true});
-          if(event.type==='sources')appendToLastAi({sources:event.sources||[]});
-          if(event.type==='done')appendToLastAi({text:event.answer,sources:event.sources||[],streaming:false});
+  const send = async (q = input) => {
+  if (!q.trim() || loading) return;
+  setActiveHistory('');
+  setMessages(m => [...m, { role: 'user', text: q }]);
+  setInput('');
+  setLoading(true);
+  setMessages(m => [...m, { role: 'ai', text: '', sources: [] }]);
+
+  try {
+    const response = await fetch(`${API}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: q, student: user.name })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`请求失败 (${response.status}): ${errorText}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let fullAnswer = '';
+    let sources = [];
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+
+      // 按行分割，处理每一条 data:
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // 保留不完整的行
+
+      for (const line of lines) {
+        if (!line.trim() || !line.startsWith('data: ')) continue;
+        const jsonStr = line.replace(/^data: /, '').trim();
+        if (jsonStr === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.type === 'delta') {
+            fullAnswer += parsed.content || '';
+            setMessages(m => {
+              const newMessages = [...m];
+              const last = newMessages[newMessages.length - 1];
+              if (last.role === 'ai') last.text = fullAnswer;
+              return newMessages;
+            });
+          } else if (parsed.type === 'sources') {
+            sources = parsed.sources || [];
+          } else if (parsed.type === 'done') {
+            // 当收到 done 时，使用完整的 answer
+            if (parsed.answer) {
+              fullAnswer = parsed.answer;
+              setMessages(m => {
+                const newMessages = [...m];
+                const last = newMessages[newMessages.length - 1];
+                if (last.role === 'ai') last.text = fullAnswer;
+                return newMessages;
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('解析流式数据失败:', e, jsonStr);
         }
       }
-      loadHistory();
-    }catch(e){appendToLastAi({text:e.message,streaming:false})}
-    finally{setLoading(false)}
-  };
+    }
+
+    // 更新 sources
+    setMessages(m => {
+      const newMessages = [...m];
+      const last = newMessages[newMessages.length - 1];
+      if (last.role === 'ai') last.sources = sources;
+      return newMessages;
+    });
+
+    loadHistory();
+  } catch (e) {
+    setMessages(m => {
+      const newMessages = [...m];
+      const last = newMessages[newMessages.length - 1];
+      if (last.role === 'ai') last.text = e.message || '网络错误，请稍后重试';
+      return newMessages;
+    });
+  } finally {
+    setLoading(false);
+  }
+};
   return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和页面`}><i className="source-index">{j+1}</i><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
 }
 
