@@ -1,4 +1,4 @@
-﻿import React, {useEffect, useMemo, useState} from 'react';
+﻿import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -329,6 +329,17 @@ function sourceLocationLabel(source){
   return source?.page?`第 ${source.page} 页`:`片段 ${source?.chunk||''}`
 }
 
+function parseMediaCaptions(content=''){
+  const pattern=/\[\[TIME:(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\]\]([\s\S]*?)(?=\[\[TIME:|$)/g;
+  const rows=[];
+  let match;
+  while((match=pattern.exec(content||''))){
+    const text=match[3].replace(/\[\[PAGE:\d+\]\]/g,'').replace(/音视频转写内容：?/g,'').trim();
+    if(text)rows.push({start:Number(match[1]),end:Number(match[2]),text});
+  }
+  return rows;
+}
+
 function Chat({user}){
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
@@ -337,7 +348,7 @@ function Chat({user}){
   const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
   const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
-  const openSource=s=>{if(!s?.document_id)return;location.assign(`/${user.role}/knowledge?doc=${encodeURIComponent(s.document_id)}&page=${encodeURIComponent(s.page||'')}&chunk=${encodeURIComponent(s.chunk||'')}`)};
+  const openSource=s=>{if(!s?.document_id)return;const params=new URLSearchParams({doc:s.document_id,page:String(s.page||''),chunk:String(s.chunk||'')});if(s.start_time!==undefined&&s.start_time!==null)params.set('start',String(s.start_time));if(s.end_time!==undefined&&s.end_time!==null)params.set('end',String(s.end_time));location.assign(`/${user.role}/knowledge?${params.toString()}`)};
   const send=async(q=input)=>{
     if(!q.trim()||loading)return;
     const question=q.trim();
@@ -378,19 +389,39 @@ function Knowledge({user}) {
   const isTeacher=user.role==='teacher';
   const [docs,setDocs]=useState([]),[selected,setSelected]=useState(null),[uploading,setUploading]=useState(false),[reindexing,setReindexing]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[uploadName,setUploadName]=useState(''),[msg,setMsg]=useState('');
   const [targetPage,setTargetPage]=useState('');
+  const [targetTime,setTargetTime]=useState(null);
+  const [activeCaption,setActiveCaption]=useState(-1);
+  const mediaRef=useRef(null);
+  const captionListRef=useRef(null);
   const load=(fresh=false)=>request('/knowledge',{cache:!fresh}).then(d=>setDocs(d.items));
   useEffect(load,[]);
-  useEffect(()=>{const params=new URLSearchParams(location.search);const target=params.get('doc');const page=params.get('page')||'';setTargetPage(page);if(target)view(target,page)},[]);
+  useEffect(()=>{const params=new URLSearchParams(location.search);const target=params.get('doc');const page=params.get('page')||'';const start=params.get('start');setTargetPage(page);setTargetTime(start!==null&&start!==''?Number(start):null);if(target)view(target,page)},[]);
   useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(()=>load(true),3000);return()=>clearInterval(timer)},[docs]);
   useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id,{cache:false}).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
+  useEffect(()=>{const player=mediaRef.current;if(!player||targetTime===null||Number.isNaN(targetTime))return;const seek=()=>{player.currentTime=Math.max(0,targetTime);player.play().catch(()=>setMsg(`已定位到 ${formatSourceTime(targetTime)}，如未自动播放请点击播放器。`))};if(player.readyState>=1)seek();else player.addEventListener('loadedmetadata',seek,{once:true});return()=>player.removeEventListener('loadedmetadata',seek)},[selected,targetTime]);
+  const captions=useMemo(()=>selected?.source_kind==='media'?parseMediaCaptions(selected.content):[],[selected]);
+  useEffect(()=>{setActiveCaption(-1)},[selected?.id]);
+  useEffect(()=>{const player=mediaRef.current;if(!player||!captions.length)return;const update=()=>{const time=player.currentTime;const index=captions.findIndex(item=>time>=item.start&&time<Math.max(item.end,item.start+.5));setActiveCaption(index)};player.addEventListener('timeupdate',update);player.addEventListener('seeked',update);update();return()=>{player.removeEventListener('timeupdate',update);player.removeEventListener('seeked',update)}},[captions,selected]);
+  useEffect(()=>{if(activeCaption<0||!captionListRef.current)return;const item=captionListRef.current.querySelector(`[data-caption-index="${activeCaption}"]`);item?.scrollIntoView({block:'center',behavior:'smooth'})},[activeCaption]);
   const view=async(id,page='')=>{try{setTargetPage(page);setSelected(await request('/knowledge/'+id))}catch(e){setMsg(e.message)}};
+  const download=d=>{window.open(`${API}/knowledge/${d.id}/download`,'_blank')};
   const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';const isMedia=/\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name);setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage(isMedia?'正在转写音视频并建立向量索引':'正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage(isMedia?'上传完成，音视频已转写入库':'上传完成，预览后台处理中');setMsg(data.message||(isMedia?'上传成功，音视频已转写并可用于检索问答':'上传成功，预览正在后台生成'));load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
   const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load(true)};
   const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load(true)}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
   const previewText=d=>d.source_kind==='media'?'可播放':d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
   const canPreview=d=>d.source_kind==='media'||d.has_preview||d.preview_status==='ready';
-  const isVideo=d=>['MP4','MOV','AVI','MKV','WEBM','WMV','FLV'].includes((d?.extension||'').toUpperCase());
-  const isAudio=d=>['MP3','WAV','M4A','AAC','FLAC','OGG','WMA'].includes((d?.extension||'').toUpperCase());
+  const fileExt=d=>{
+    const raw=((d?.extension||'')+'').replace(/^\./,'').toUpperCase();
+    if(raw)return raw;
+    const match=((d?.name||d?.stored_path||'')+'').match(/\.([a-z0-9]+)$/i);
+    return match?match[1].toUpperCase():'';
+  };
+  const isVideo=d=>['MP4','MOV','AVI','MKV','WEBM','WMV','FLV','M4V'].includes(fileExt(d))||/^video\//i.test((d?.mime_type||d?.media_type||d?.type||'')+'');
+  const isAudio=d=>['MP3','WAV','M4A','AAC','FLAC','OGG','WMA','OPUS'].includes(fileExt(d))||/^audio\//i.test((d?.mime_type||d?.media_type||d?.type||'')+'');
+  const fileTypeLabel=d=>isVideo(d)?'视频':isAudio(d)?'音频':(fileExt(d)||((d?.type||'资料')+'').toUpperCase());
+  const fileTypeClass=d=>isVideo(d)?'video':isAudio(d)?'audio':['PPT','PPTX'].includes(fileExt(d))?'ppt':['DOC','DOCX'].includes(fileExt(d))?'word':fileExt(d)==='PDF'?'pdf':'other';
+  const jumpCaption=item=>{const player=mediaRef.current;if(!player)return;player.currentTime=Math.max(0,item.start);player.play().catch(()=>{})};
+  const captionPanel=captions.length>0&&<div className="caption-panel"><div className="caption-head"><b>滚动字幕</b><span>{activeCaption>=0?`${formatSourceTime(captions[activeCaption].start)} - ${formatSourceTime(captions[activeCaption].end)}`:'播放时自动定位'}</span></div><div className="caption-list" ref={captionListRef}>{captions.map((item,index)=><button type="button" data-caption-index={index} className={index===activeCaption?'active':''} key={`${item.start}-${index}`} onClick={()=>jumpCaption(item)}><em>{formatSourceTime(item.start)}</em><span>{item.text}</span></button>)}</div></div>;
   return <>
     <section className="knowledge-head">
       <div>
@@ -419,11 +450,12 @@ function Knowledge({user}) {
         <div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>预览</span></div>
         {docs.map(d=><div className="tr" key={d.id}>
           <span className="doc-name"><i><FileText/></i><b>{d.name}<small>{d.size} KB</small></b></span>
-          <span><em className="tag">{d.type}</em></span>
+          <span><em className={'tag file-type '+fileTypeClass(d)}>{fileTypeLabel(d)}</em></span>
           <span>{d.chunks}</span>
           <span>{d.created_at}</span>
           <span className="doc-actions">
             <button className={'view-doc preview-action '+(d.preview_status||'')} onClick={()=>view(d.id)} disabled={!canPreview(d)}>{canPreview(d)?<CheckCircle2/>:<AlertCircle/>}{previewText(d)}</button>
+            <button className="download-doc" onClick={()=>download(d)} title="下载原始资料"><Upload/>下载</button>
             {isTeacher&&<button className="trash" onClick={()=>del(d.id)}><Trash2/></button>}
           </span>
         </div>)}
@@ -431,11 +463,11 @@ function Knowledge({user}) {
     </section>
 
     {selected&&<section className="panel document-reader">
-      <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage?` · 已定位到第 ${targetPage} 页`:''}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
+      <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage?` · 已定位到第 ${targetPage} 页`:''}{targetTime!==null&&!Number.isNaN(targetTime)?` · 已定位到 ${formatSourceTime(targetTime)}`:''}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
       {selected.source_kind==='media'&&isVideo(selected)
-        ? <video className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media`} title={selected.name}/>
+        ? <div className="media-preview"><video ref={mediaRef} key={`${selected.id}-${targetTime??'top'}`} className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime!==null&&!Number.isNaN(targetTime)?`#t=${Math.max(0,targetTime)}`:''}`} title={selected.name}/>{captionPanel}</div>
         : selected.source_kind==='media'&&isAudio(selected)
-          ? <div className="audio-preview"><FileText/><b>{selected.name}</b><audio className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media`}/></div>
+          ? <div className="media-preview"><div className="audio-preview"><FileText/><b>{selected.name}</b><audio ref={mediaRef} key={`${selected.id}-${targetTime??'top'}`} className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media${targetTime!==null&&!Number.isNaN(targetTime)?`#t=${Math.max(0,targetTime)}`:''}`}/></div>{captionPanel}</div>
           : selected.has_preview
             ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
             : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
