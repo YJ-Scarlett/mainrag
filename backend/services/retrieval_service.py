@@ -6,6 +6,7 @@ from services.vector_store import clear_vectors, query_vectors, replace_document
 from storage.json_store import store
 
 PAGE_MARKER = re.compile(r"(?:\[\[PAGE:(\d+)\]\]|\u7b2c\s*(\d+)\s*\u9875)")
+TIME_MARKER = re.compile(r"\[\[TIME:(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\]\]")
 
 TERM_EXPANSIONS = {
     "\u8def\u7531\u5668": ["router", "routers", "routing", "forwarding", "\u8def\u7531", "\u8f6c\u53d1"],
@@ -45,6 +46,12 @@ def _split_text(text: str, size: int = 220) -> list[str]:
     parts = [part.strip() for part in re.split(r"(?<=[。！？；\n])", text) if part.strip()]
     result, current = [], ""
     for part in parts:
+        if len(part) > size:
+            if current:
+                result.append(current)
+                current = ""
+            result.extend(part[index:index + size] for index in range(0, len(part), size))
+            continue
         if current and len(current) + len(part) > size:
             result.append(current)
             current = part
@@ -55,10 +62,92 @@ def _split_text(text: str, size: int = 220) -> list[str]:
     return result
 
 
+def _time_chunks(text: str, page: int | None, size: int) -> list[dict]:
+    markers = list(TIME_MARKER.finditer(text or ""))
+    if not markers:
+        return []
+
+    segments = []
+    for index, marker in enumerate(markers):
+        start_time = float(marker.group(1))
+        end_time = float(marker.group(2))
+        start = marker.end()
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
+        content = text[start:end].strip()
+        if content:
+            segments.append({"content": content, "start_time": start_time, "end_time": end_time})
+
+    rows: list[dict] = []
+    current = ""
+    current_start = None
+    current_end = None
+    for segment in segments:
+        content = segment["content"]
+        if len(content) > size:
+            if current:
+                rows.append({
+                    "content": current.strip(),
+                    "page": page,
+                    "start_time": current_start,
+                    "end_time": current_end,
+                })
+                current = ""
+                current_start = None
+                current_end = None
+            parts = _split_text(content, size)
+            duration = max(0.0, segment["end_time"] - segment["start_time"])
+            for part_index, part in enumerate(parts):
+                part_start = segment["start_time"] + duration * part_index / max(1, len(parts))
+                part_end = segment["start_time"] + duration * (part_index + 1) / max(1, len(parts))
+                rows.append({
+                    "content": part.strip(),
+                    "page": page,
+                    "start_time": part_start,
+                    "end_time": part_end,
+                })
+            continue
+        if current and len(current) + len(content) > size:
+            rows.append({
+                "content": current.strip(),
+                "page": page,
+                "start_time": current_start,
+                "end_time": current_end,
+            })
+            current = ""
+            current_start = None
+            current_end = None
+        if not current:
+            current_start = segment["start_time"]
+        current = f"{current}\n{content}".strip()
+        current_end = segment["end_time"]
+
+        if len(current) >= size:
+            rows.append({
+                "content": current.strip(),
+                "page": page,
+                "start_time": current_start,
+                "end_time": current_end,
+            })
+            current = ""
+            current_start = None
+            current_end = None
+    if current:
+        rows.append({
+            "content": current.strip(),
+            "page": page,
+            "start_time": current_start,
+            "end_time": current_end,
+        })
+    return rows
+
+
 def split_page_chunks(text: str, size: int = 220) -> list[dict]:
     """按页切片，避免一个向量片段跨页导致溯源页码错位。"""
     markers = list(PAGE_MARKER.finditer(text or ""))
     if not markers:
+        time_rows = _time_chunks(text or "", None, size)
+        if time_rows:
+            return time_rows
         return [{"content": chunk, "page": None} for chunk in _split_text(text or "", size)]
 
     rows: list[dict] = []
@@ -68,6 +157,10 @@ def split_page_chunks(text: str, size: int = 220) -> list[dict]:
         end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
         page_text = text[start:end].strip()
         if not page_text:
+            continue
+        time_rows = _time_chunks(page_text, page, size)
+        if time_rows:
+            rows.extend(time_rows)
             continue
         for chunk in _split_text(page_text, size):
             rows.append({"content": chunk, "page": page})
@@ -89,6 +182,8 @@ async def index_document(document: dict) -> int:
             "document": document["name"],
             "chunk": index,
             "page": chunk.get("page"),
+            "start_time": chunk.get("start_time"),
+            "end_time": chunk.get("end_time"),
             "content": chunk["content"],
             "embedding": embedding,
         })
@@ -171,6 +266,8 @@ def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:
                     "content": content,
                     "chunk": index,
                     "page": chunk.get("page"),
+                    "start_time": chunk.get("start_time"),
+                    "end_time": chunk.get("end_time"),
                     "score": round(raw_score, 2),
                 })
     rows.sort(key=lambda row: row["score"], reverse=True)
@@ -184,6 +281,8 @@ def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:
                     "content": document_chunks[0]["content"],
                     "chunk": 1,
                     "page": document_chunks[0].get("page"),
+                    "start_time": document_chunks[0].get("start_time"),
+                    "end_time": document_chunks[0].get("end_time"),
                     "score": .32,
                 })
     return rows[:top_k]
