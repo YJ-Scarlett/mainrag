@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 
-from schemas.exam import GenerateExamRequest, SubmitExamRequest
+from schemas.exam import GradeSubmissionRequest, GenerateExamRequest, PublishExamRequest, SubmitExamRequest
 from services.exam_service import (
     delete_exam, generate_exam, list_exams, publish_exam,
-    student_submissions, submit_exam, wrong_questions,
+    grade_submission, list_submissions, student_submission_view, student_submissions, submit_exam, wrong_questions,
 )
 
 router = APIRouter()
@@ -11,7 +11,7 @@ router = APIRouter()
 
 @router.post("/generate")
 async def generate(body: GenerateExamRequest):
-    return await generate_exam(body.document_id, body.chapter, body.title, body.count, body.difficulty)
+    return await generate_exam(body.document_id, body.chapter, body.title, body.count, body.difficulty, body.question_types)
 
 
 @router.get("")
@@ -26,8 +26,8 @@ def get_exams(published_only: bool = False):
 
 
 @router.post("/{exam_id}/publish")
-def publish(exam_id: str):
-    return publish_exam(exam_id)
+def publish(exam_id: str, body: PublishExamRequest | None = None):
+    return publish_exam(exam_id, body.question_ids if body else None)
 
 
 @router.delete("/{exam_id}")
@@ -37,8 +37,24 @@ def remove(exam_id: str):
 
 
 @router.post("/{exam_id}/submit")
-def submit(exam_id: str, body: SubmitExamRequest):
-    return submit_exam(exam_id, body.student, body.answers)
+async def submit(exam_id: str, body: SubmitExamRequest):
+    result = await submit_exam(exam_id, body.student, body.answers, body.solution_grading)
+    return student_submission_view(result)
+
+
+@router.get("/submissions/all")
+def all_submissions(status: str | None = None, x_role: str = Header("", alias="X-Role")):
+    if x_role != "teacher":
+        raise HTTPException(403, "仅教师可以查看学生试卷")
+    return {"items": list_submissions(status)}
+
+
+@router.post("/submissions/{submission_id}/grade")
+def teacher_grade(submission_id: str, body: GradeSubmissionRequest, x_role: str = Header("", alias="X-Role")):
+    if x_role != "teacher":
+        raise HTTPException(403, "仅教师可以批改试卷")
+    grades = {question_id: item.model_dump() for question_id, item in body.grades.items()}
+    return grade_submission(submission_id, grades, body.overall_comment)
 
 
 @router.get("/student/submissions")

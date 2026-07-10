@@ -1,12 +1,12 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Search, Send, Sparkles, Trash2, Upload, Users, X} from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import './styles.css';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
-async function request(path, options={}) { let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const headers={...(options.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...options,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); return data; }
+const requestCache=new Map();
+async function request(path, options={}) { const {cache=true,...fetchOptions}=options;let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const method=(fetchOptions.method||'GET').toUpperCase();const cacheKey=`${role}:${path}`;if(method==='GET'&&cache&&requestCache.has(cacheKey)){const item=requestCache.get(cacheKey);if(Date.now()-item.time<10000)return item.data}const headers={...(fetchOptions.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...fetchOptions,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); if(method==='GET'&&cache)requestCache.set(cacheKey,{time:Date.now(),data}); return data; }
 const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 function Login({onLogin}) {
@@ -170,16 +170,16 @@ function Login({onLogin}) {
   );
 }
 
-const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
-const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
-const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
-function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);return pathRole===role&&slugPage[slug]?slugPage[slug]:'dashboard'}
+const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['grading','试卷批改',CheckCircle2],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
+const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
+const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
+function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);const page=slugPage[slug];return pathRole===role&&page&&navs[role].some(item=>item[0]===page)?page:'dashboard'}
 function Shell({user,onLogout}){const [page,setPageState]=useState(()=>initialPage(user.role)),[open,setOpen]=useState(false);const setPage=(next)=>{setPageState(next);history.pushState({},'',`/${user.role}/${pageSlug[next]}`)};useEffect(()=>{const pop=()=>setPageState(initialPage(user.role));addEventListener('popstate',pop);return()=>removeEventListener('popstate',pop)},[user.role]);const title=navs[user.role].find(n=>n[0]===page)?.[1];return <div className="app"><aside className={open?'open':''}><div className="logo"><div className="brand-mark"><GraduationCap/></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={()=>setOpen(false)}><X/></button></div><div className="side-label">{user.role==='teacher'?'教师工作台':'学习空间'}</div><nav>{navs[user.role].map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>{setPage(id);setOpen(false)}}><Icon/>{label}</button>)}</nav><div className="side-user"><CircleUserRound/><span><b>{user.name}</b><small>{user.role==='teacher'?'计算机网络 · 教师':'计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut/></button></div></aside><main><header><button className="hamburger" onClick={()=>setOpen(true)}><Menu/></button><div><small>{user.role==='teacher'?'教师工作台':'我的学习空间'}</small><h2>{title}</h2></div><div className="header-user"><span>{user.name.slice(0,1)}</span><b>{user.name}</b></div></header><ErrorBoundary resetKey={page}>
   <div className="content">
-    {page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}
+    {page==='dashboard'?<Dashboard user={user} go={setPage}/>:page==='chat'?<Chat user={user}/>:page==='knowledge'?<Knowledge user={user}/>:page==='exams'?<Exams user={user}/>:page==='grading'?<TeacherGrading/>:page==='wrongbook'?<Wrongbook user={user}/>:<Analysis role={user.role}/>}
   </div>
 </ErrorBoundary></main></div>}
-class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error)this.setState({error:null});if(this.state.error&&!sessionStorage.getItem('mainrag-auto-refreshing')){sessionStorage.setItem('mainrag-auto-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-auto-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
+class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error){sessionStorage.removeItem('mainrag-error-refreshing');this.setState({error:null})}}componentDidCatch(){if(!sessionStorage.getItem('mainrag-error-refreshing')){sessionStorage.setItem('mainrag-error-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-error-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
 
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
 function Dashboard({user, go}) {
@@ -255,24 +255,25 @@ function Dashboard({user, go}) {
   );
 }
 
-<<<<<<< HEAD
-function Chat({user}) {
-  const welcome = { role: 'ai', text: `你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。` };
-  const [messages, setMessages] = useState([welcome]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [historyItems, setHistoryItems] = useState([]);
-  const [activeHistory, setActiveHistory] = useState('');
-=======
 function renderInlineMarkdown(text){
   const parts=String(text||'').split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part)
 }
 
-function MarkdownText({text}){
+function SourceSup({source,index,onSourceClick}){
+  if(!source)return null;
+  return <sup className="source-sup" title={`来源 ${index+1}：${source.document}`} onClick={e=>{e.stopPropagation();onSourceClick?.(source)}}>[{index+1}]</sup>
+}
+
+function SourceSups({items=[],onSourceClick}){
+  if(!items.length)return null;
+  return <span className="source-sup-group">{items.map(({source,index})=><SourceSup key={index} source={source} index={index} onSourceClick={onSourceClick}/>)}</span>
+}
+
+function MarkdownText({text,sources=[],onSourceClick}){
   const cleanText=String(text||'').replace(/\n?\s*(参考资料|参考来源|资料来源|来源)\s*[:：][\s\S]*$/,'');
   const lines=cleanText.split('\n');
-  const blocks=[];
+  const parsed=[];
   let i=0;
   while(i<lines.length){
     const line=lines[i];
@@ -286,7 +287,7 @@ function MarkdownText({text}){
         items.push(m[1]);
         i++;
       }
-      blocks.push(<ol key={blocks.length}>{items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>);
+      parsed.push({type:'ol',items});
       continue;
     }
     const bullet=line.match(/^\s*[-*]\s+(.+)$/);
@@ -298,15 +299,30 @@ function MarkdownText({text}){
         items.push(m[1]);
         i++;
       }
-      blocks.push(<ul key={blocks.length}>{items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>);
+      parsed.push({type:'ul',items});
       continue;
     }
     const heading=line.match(/^\s*#{1,3}\s+(.+)$/);
-    if(heading){blocks.push(<h4 key={blocks.length}>{renderInlineMarkdown(heading[1])}</h4>);i++;continue}
+    if(heading){parsed.push({type:'heading',text:heading[1]});i++;continue}
     const paragraph=[];
     while(i<lines.length&&lines[i].trim()&&!/^\s*\d+[.)、]\s+/.test(lines[i])&&!/^\s*[-*]\s+/.test(lines[i])&&!/^\s*#{1,3}\s+/.test(lines[i])){paragraph.push(lines[i]);i++}
-    blocks.push(<p key={blocks.length}>{renderInlineMarkdown(paragraph.join('\n'))}</p>);
+    parsed.push({type:'p',text:paragraph.join('\n')});
   }
+  const citeTargets=parsed.map((block,index)=>block.type==='heading'?null:index).filter(index=>index!==null);
+  const groups=parsed.map(()=>[]);
+  if(citeTargets.length&&sources.length){
+    sources.forEach((source,index)=>{
+      const target=citeTargets[Math.min(index,citeTargets.length-1)];
+      groups[target].push({source,index});
+    });
+  }
+  const blocks=parsed.map((block,index)=>{
+    const cites=<SourceSups items={groups[index]} onSourceClick={onSourceClick}/>;
+    if(block.type==='ol')return <React.Fragment key={index}><ol>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>{cites}</React.Fragment>;
+    if(block.type==='ul')return <React.Fragment key={index}><ul>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>{cites}</React.Fragment>;
+    if(block.type==='heading')return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
+    return <p key={index}>{renderInlineMarkdown(block.text)}{cites}</p>;
+  });
   return <div className="markdown-body">{blocks}</div>
 }
 
@@ -316,6 +332,7 @@ function Chat({user}){
   const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(loadHistory,[user.name]);
   const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
+  const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource=s=>{if(!s?.document_id)return;location.assign(`/${user.role}/knowledge?doc=${encodeURIComponent(s.document_id)}&page=${encodeURIComponent(s.page||'')}&chunk=${encodeURIComponent(s.chunk||'')}`)};
   const send=async(q=input)=>{
@@ -351,183 +368,22 @@ function Chat({user}){
     }catch(e){appendToLastAi({text:e.message,streaming:false})}
     finally{setLoading(false)}
   };
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title="点击跳转到对应文档和页面"><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span>{item.question}</span><small>{item.topic} · {item.at?.replace('T',' ')}</small></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
+  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和页面`}><i className="source-index">{j+1}</i><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
 }
->>>>>>> upstream/master
 
-  const loadHistory = () => request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d => setHistoryItems(d.items || [])).catch(() => {});
-  useEffect(loadHistory, [user.name]);
-
-  const openHistory = item => {
-    setActiveHistory(item.id);
-    setMessages([welcome, { role: 'user', text: item.question }, { role: 'ai', text: item.answer, sources: item.sources || [] }]);
-  };
-
-  // ==================== 流式发送 ====================
-const send = async (q = input) => {
-  if (!q.trim() || loading) return;
-  setActiveHistory('');
-  setMessages(m => [...m, { role: 'user', text: q }]);
-  setInput('');
-  setLoading(true);
-  setMessages(m => [...m, { role: 'ai', text: '', sources: [] }]);
-
-  try {
-    const response = await fetch(`${API}/chat/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: q, student: user.name })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`请求失败 (${response.status}): ${errorText}`);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let fullAnswer = '';
-    let sources = [];
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
-
-      const idx = buffer.indexOf('[SOURCES]');
-      if (idx !== -1) {
-        // 提取标记之前的正文
-        const textPart = buffer.substring(0, idx);
-        // 直接覆盖 fullAnswer（因为 buffer 中可能已经包含了之前误加的部分）
-        fullAnswer = textPart;
-        // 更新消息
-        setMessages(m => {
-          const newMessages = [...m];
-          const last = newMessages[newMessages.length - 1];
-          if (last.role === 'ai') last.text = fullAnswer;
-          return newMessages;
-        });
-
-        const jsonPart = buffer.substring(idx + 9);
-        try {
-          sources = JSON.parse(jsonPart);
-        } catch (e) {
-          console.warn('Failed to parse sources:', e);
-          sources = [];
-        }
-        break;
-      } else {
-        fullAnswer += chunk;
-        setMessages(m => {
-          const newMessages = [...m];
-          const last = newMessages[newMessages.length - 1];
-          if (last.role === 'ai') last.text = fullAnswer;
-          return newMessages;
-        });
-      }
-    }
-
-    // 循环结束后，更新 sources
-    setMessages(m => {
-      const newMessages = [...m];
-      const last = newMessages[newMessages.length - 1];
-      if (last.role === 'ai') last.sources = sources;
-      return newMessages;
-    });
-
-    loadHistory();
-  } catch (e) {
-    setMessages(m => {
-      const newMessages = [...m];
-      const last = newMessages[newMessages.length - 1];
-      if (last.role === 'ai') last.text = e.message || '网络错误，请稍后重试';
-      return newMessages;
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-  // ==================================================
-
-  return (
-    <div className="chat-layout">
-      <section className="chat-box">
-        <div className="chat-top">
-          <div className="bot-avatar"><Bot/></div>
-          <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答</small></div>
-        </div>
-        <div className="messages">
-          {messages.map((m, i) => (
-            <div className={'message ' + m.role} key={i}>
-              {m.role === 'ai' && <div className="avatar"><Sparkles/></div>}
-              <div>
-                <div className="bubble">
-  {m.role === 'ai' ? (
-    <ReactMarkdown>{m.text}</ReactMarkdown>
-  ) : (
-    m.text
-  )}
-</div>
-                {m.sources?.length > 0 && (
-                  <div className="sources">
-                    <b><FileText/>参考来源</b>
-                    {m.sources.map((s, j) => (
-                      <span key={j}>{s.document} · 片段 {s.chunk}<em>{Math.round(s.score * 100)}%</em></span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="message ai">
-              <div className="avatar"><Sparkles/></div>
-              <div className="bubble typing"><i/><i/><i/></div>
-            </div>
-          )}
-        </div>
-        <div className="composer">
-          <div>
-            <textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
-            <button onClick={() => send()}><Send/></button>
-          </div>
-          <small>回答由课程知识库生成，请结合课堂内容判断</small>
-        </div>
-      </section>
-      <aside className="suggestions chat-side">
-        <div className="side-block">
-          <h3><Sparkles/>试试这样问</h3>
-          {['TCP 如何保证可靠传输？', 'HTTP 和 HTTPS 有什么区别？', '什么是数据库事务的 ACID？', 'IPv4 与 IPv6 的主要区别？'].map(x => <button key={x} onClick={() => send(x)}>{x}<ChevronRight/></button>)}
-        </div>
-        <div className="side-block history-block">
-          <h3><MessageCircle/>历史问答</h3>
-          {historyItems.length === 0 ? <p className="empty-history">暂无历史记录，提问后会自动保存。</p> : historyItems.map(item => (
-            <button className={activeHistory === item.id ? 'active' : ''} key={item.id} onClick={() => openHistory(item)}>
-              <span>{item.question}</span>
-              <small>{item.topic} · {item.at?.replace('T', ' ')}</small>
-            </button>
-          ))}
-        </div>
-        <div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div>
-      </aside>
-    </div>
-  );
-}
 function Knowledge({user}) {
   const isTeacher=user.role==='teacher';
   const [docs,setDocs]=useState([]),[selected,setSelected]=useState(null),[uploading,setUploading]=useState(false),[reindexing,setReindexing]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[uploadName,setUploadName]=useState(''),[msg,setMsg]=useState('');
   const [targetPage,setTargetPage]=useState('');
-  const load=()=>request('/knowledge').then(d=>setDocs(d.items));
+  const load=(fresh=false)=>request('/knowledge',{cache:!fresh}).then(d=>setDocs(d.items));
   useEffect(load,[]);
   useEffect(()=>{const params=new URLSearchParams(location.search);const target=params.get('doc');const page=params.get('page')||'';setTargetPage(page);if(target)view(target,page)},[]);
-  useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(load,3000);return()=>clearInterval(timer)},[docs]);
-  useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
+  useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(()=>load(true),3000);return()=>clearInterval(timer)},[docs]);
+  useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id,{cache:false}).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
   const view=async(id,page='')=>{try{setTargetPage(page);setSelected(await request('/knowledge/'+id))}catch(e){setMsg(e.message)}};
-  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage('正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage('上传完成，预览后台处理中');setMsg(data.message||'上传成功，预览正在后台生成');load();setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
-  const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load()};
-  const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load()}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
+  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage('正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage('上传完成，预览后台处理中');setMsg(data.message||'上传成功，预览正在后台生成');load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
+  const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load(true)};
+  const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load(true)}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
   const previewText=d=>d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
   const canPreview=d=>d.has_preview||d.preview_status==='ready';
   return <>
@@ -648,9 +504,22 @@ function Analysis({role}){
   </>;
 }
 
-function TeacherExams(){const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等'}),[loading,setLoading]=useState(false),[msg,setMsg]=useState('');const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});useEffect(load,[]);const generate=async e=>{e.preventDefault();setLoading(true);setMsg('');try{await post('/exams/generate',{...form,count:Number(form.count)});setMsg('习题生成成功，请检查后发布。');load()}catch(e){setMsg(e.message)}finally{setLoading(false)}};const publish=async id=>{await post(`/exams/${id}/publish`,{});setMsg('已发布到学生端');load()};const remove=async id=>{if(!confirm('确定删除这套习题吗？'))return;await request(`/exams/${id}`,{method:'DELETE'});load()};return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成课程习题并发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} · {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>publish(exam.id)}>发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div></>}
+function questionTypeText(type){return type==='choice'?'单选题':type==='fill'?'填空题':type==='solution'?'解答题':'题目'}
 
-function StudentExams({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`)]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(load,[]);const submitted=id=>subs.find(s=>s.exam_id===id);const open=exam=>{setActive(exam);setAnswers({});setResult(null)};const submit = () => {
+function TeacherExams(){
+  const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等',question_types:['choice','fill','solution']}),[loading,setLoading]=useState(false),[msg,setMsg]=useState(''),[preview,setPreview]=useState(null),[selected,setSelected]=useState([]);
+  const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});
+  useEffect(load,[]);
+  const toggleType=type=>setForm(f=>{const exists=f.question_types.includes(type);const next=exists?f.question_types.filter(x=>x!==type):[...f.question_types,type];return {...f,question_types:next.length?next:[type]}});
+  const openPreview=exam=>{setPreview(exam);setSelected((exam.questions||[]).map(q=>q.id));setMsg('')};
+  const generate=async e=>{e.preventDefault();setLoading(true);setMsg('');try{const exam=await post('/exams/generate',{...form,count:Number(form.count)});setMsg('习题生成成功，请预览并勾选后发布。');openPreview(exam);load()}catch(e){setMsg(e.message)}finally{setLoading(false)}};
+  const toggleQuestion=id=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
+  const publish=async (exam=preview)=>{if(!exam)return;if(!selected.length){setMsg('请至少勾选一道习题再发布。');return}await post(`/exams/${exam.id}/publish`,{question_ids:selected});setMsg('已发布到学生端');setPreview(null);setSelected([]);load()};
+  const remove=async id=>{if(!confirm('确定删除这套习题吗？'))return;await request(`/exams/${id}`,{method:'DELETE'});if(preview?.id===id){setPreview(null);setSelected([])}load()};
+  return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice','单选题'],['fill','填空题'],['solution','解答题']].map(([type,label])=><label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={()=>toggleType(type)}/>{label}</label>)}</div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>openPreview(exam)}>预览发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div>{preview&&<section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={()=>setSelected(preview.questions.map(q=>q.id))}>全选</button><button className="secondary-btn" onClick={()=>setSelected([])}>清空</button><button className="primary" onClick={()=>publish(preview)}>发布所选</button><button onClick={()=>setPreview(null)}><X/></button></div></div><div className="preview-questions">{preview.questions.map((q,i)=><article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={()=>toggleQuestion(q.id)}/><span>{i+1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length>0&&<ul>{q.options.map(o=><li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis&&<p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}</>}
+
+
+function StudentExamsLegacy({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`)]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(load,[]);const submitted=id=>subs.find(s=>s.exam_id===id);const open=exam=>{setActive(exam);setAnswers({});setResult(null)};const submit = () => {
   setShowConfirm(true);
 };
 
@@ -659,7 +528,7 @@ const doSubmit = async () => {
   const data = await post(`/exams/${active.id}/submit`, { student: user.name, answers });
   setResult(data);
   load();
-};if(active)return <section className="panel take-exam"><button className="back-link" onClick={()=>setActive(null)}>← 返回练习中心</button><div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result&&<strong>{result.score}/{result.total}</strong>}</div>{active.questions.map((q,i)=>{const detail=result?.details.find(d=>d.id===q.id);return <article className={'question '+(detail?(detail.correct?'correct':'wrong'):'')} key={q.id}><h3><span>{i+1}</span>{q.question}</h3>{q.options?.length>0?<div className="options">{q.options.map(option=>{const value=option.match(/^([A-Za-z])\./)?.[1]||option;return <label key={option}><input type="radio" name={q.id} disabled={!!result} checked={answers[q.id]===value} onChange={()=>setAnswers({...answers,[q.id]:value})}/><span>{option}</span></label>})}</div>:<textarea disabled={!!result} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})} placeholder="请输入你的答案"/>}{detail&&!detail.correct&&<div className="answer-detail"><b>正确答案：{detail.answer}</b><p>{detail.analysis}</p></div>}</article>})}{!result?<button className="primary submit-exam" onClick={submit}>提交练习</button>:<button className="primary submit-exam" onClick={()=>setActive(null)}>完成并返回</button>}{showConfirm && (
+};if(active)return <section className="panel take-exam"><button className="back-link" onClick={()=>setActive(null)}>← 返回练习中心</button><div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result&&<strong>{result.score}/{result.total}</strong>}</div>{active.questions.map((q,i)=>{const detail=result?.details.find(d=>d.id===q.id);return <article className={'question '+(detail?(detail.correct?'correct':'wrong'):'')} key={q.id}><h3><span>{i+1}</span><em className="question-type">{questionTypeText(q.type)}</em>{q.question}</h3>{q.options?.length>0?<div className="options">{q.options.map(option=>{const value=option.match(/^([A-Za-z])\./)?.[1]||option;return <label key={option}><input type="radio" name={q.id} disabled={!!result} checked={answers[q.id]===value} onChange={()=>setAnswers({...answers,[q.id]:value})}/><span>{option}</span></label>})}</div>:q.type==='fill'?<input className="fill-answer" disabled={!!result} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})} placeholder="???????"/>:<textarea disabled={!!result} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})} placeholder="???????"/>}{detail&&!detail.correct&&<div className="answer-detail"><b>正确答案：{detail.answer}</b><p>{detail.analysis}</p></div>}</article>})}{!result?<button className="primary submit-exam" onClick={submit}>提交练习</button>:<button className="primary submit-exam" onClick={()=>setActive(null)}>完成并返回</button>}{showConfirm && (
   <div className="modal-overlay" onClick={() => setShowConfirm(false)}>
     <div className="modal-box" onClick={(e) => e.stopPropagation()}>
       <p style={{ fontSize: 16, marginBottom: 20 }}>确认提交本次练习吗？</p>
@@ -670,6 +539,97 @@ const doSubmit = async () => {
     </div>
   </div>
 )}</section>;return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>完成教师发布的习题，结果会自动进入学情分析和错题本。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className="done"><CheckCircle2/>已完成 {done.accuracy}%</span>}</div><button onClick={()=>open(exam)}>{done?'重新练习':'开始练习'}<ChevronRight/></button></article>})}</div></>}
+
+function StudentExams({user}) {
+  const [items,setItems]=useState([]);
+  const [subs,setSubs]=useState([]);
+  const [active,setActive]=useState(null);
+  const [answers,setAnswers]=useState({});
+  const [result,setResult]=useState(null);
+  const [showConfirm,setShowConfirm]=useState(false);
+  const [gradingMode,setGradingMode]=useState('ai');
+  const [submitting,setSubmitting]=useState(false);
+  const [error,setError]=useState('');
+  const load=()=>Promise.all([
+    request('/exams?published_only=true',{cache:false}),
+    request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`,{cache:false})
+  ]).then(([exams,submissions])=>{setItems(exams.items);setSubs(submissions.items)});
+  useEffect(()=>{load()},[]);
+  const submitted=id=>subs.find(item=>item.exam_id===id);
+  const open=exam=>{
+    const previous=submitted(exam.id);
+    setActive(exam);
+    setAnswers(previous?Object.fromEntries(previous.details.map(detail=>[detail.id,detail.student_answer])):{});
+    setResult(previous||null);
+    setError('');
+  };
+  const startAgain=()=>{setAnswers({});setResult(null);setError('')};
+  const doSubmit=async()=>{
+    setSubmitting(true);setError('');
+    try{
+      const data=await post(`/exams/${active.id}/submit`,{
+        student:user.name,answers,solution_grading:gradingMode
+      });
+      setResult(data);setShowConfirm(false);await load();
+    }catch(err){setError(err.message)}finally{setSubmitting(false)}
+  };
+  if(active){
+    const hasSolutions=active.questions.some(question=>question.type==='solution');
+    const pending=result?.status==='pending_teacher';
+    return <section className="panel take-exam">
+      <button className="back-link" onClick={()=>setActive(null)}>← 返回练习中心</button>
+      <div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result&&<strong>{pending?'待教师批改':`${result.score}/${result.total}`}</strong>}</div>
+      {pending&&<div className="grading-status pending">解答题已发送到教师端。教师完成评分和评语后，这里会显示最终成绩。</div>}
+      {result?.status==='graded'&&result.overall_comment&&<div className="grading-status graded"><b>教师总评：</b>{result.overall_comment}</div>}
+      {active.questions.map((question,index)=>{
+        const detail=result?.details.find(item=>item.id===question.id);
+        const state=detail?.grading_status==='pending'?'pending':detail?(detail.correct?'correct':'wrong'):'';
+        return <article className={`question ${state}`} key={question.id}>
+          <h3><span>{index+1}</span><em className="question-type">{questionTypeText(question.type)}</em>{question.question}</h3>
+          {question.options?.length>0?<div className="options">{question.options.map(option=>{const value=option.match(/^([A-Za-z])\./)?.[1]||option;return <label key={option}><input type="radio" name={question.id} disabled={!!result} checked={answers[question.id]===value} onChange={()=>setAnswers({...answers,[question.id]:value})}/><span>{option}</span></label>})}</div>:question.type==='fill'?<input className="fill-answer" disabled={!!result} value={answers[question.id]||''} onChange={event=>setAnswers({...answers,[question.id]:event.target.value})} placeholder="请输入答案"/>:<textarea disabled={!!result} value={answers[question.id]||''} onChange={event=>setAnswers({...answers,[question.id]:event.target.value})} placeholder="请写出解答过程和结论"/>}
+          {detail?.grading_status==='graded'&&<div className="answer-detail"><b>得分：{detail.score_awarded}/{detail.score}</b>{detail.feedback&&<p><b>评语：</b>{detail.feedback}</p>}{detail.correct===false&&detail.answer&&<p><b>参考答案：</b>{detail.answer}</p>}</div>}
+          {detail?.grading_status==='pending'&&<div className="answer-detail pending-detail">等待教师评分与评语</div>}
+        </article>
+      })}
+      {error&&<div className="error">{error}</div>}
+      {!result?<button className="primary submit-exam" onClick={()=>setShowConfirm(true)}>提交练习</button>:<div className="submit-actions"><button className="secondary-btn" onClick={startAgain}>重新练习</button><button className="primary" onClick={()=>{load();setActive(null)}}>完成并返回</button></div>}
+      {showConfirm&&<div className="modal-overlay" onClick={()=>!submitting&&setShowConfirm(false)}><div className="modal-box grading-choice" onClick={event=>event.stopPropagation()}><h3>确认提交本次练习</h3>{hasSolutions&&<><p>本试卷包含解答题，请选择批改方式：</p><label className={gradingMode==='ai'?'selected':''}><input type="radio" checked={gradingMode==='ai'} onChange={()=>setGradingMode('ai')}/><span><b>AI 批改</b><small>提交后由 DeepSeek 按参考答案即时评分并给出评语</small></span></label><label className={gradingMode==='teacher'?'selected':''}><input type="radio" checked={gradingMode==='teacher'} onChange={()=>setGradingMode('teacher')}/><span><b>教师批改</b><small>提交到教师端，等待教师评分并填写评语</small></span></label></>}<div className="modal-actions"><button className="secondary-btn" disabled={submitting} onClick={()=>setShowConfirm(false)}>取消</button><button className="primary" disabled={submitting} onClick={doSubmit}>{submitting?'正在提交…':'确认提交'}</button></div></div></div>}
+    </section>
+  }
+  return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>解答题可选择 AI 即时批改，也可提交教师评分并获得评语。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className={`done ${done.status==='pending_teacher'?'pending':''}`}><CheckCircle2/>{done.status==='pending_teacher'?'待教师批改':`已完成 ${done.accuracy}%`}</span>}</div><button onClick={()=>open(exam)}>{done?'查看结果':'开始练习'}<ChevronRight/></button></article>})}</div></>
+}
+
+function TeacherGrading(){
+  const [items,setItems]=useState([]);
+  const [active,setActive]=useState(null);
+  const [grades,setGrades]=useState({});
+  const [overall,setOverall]=useState('');
+  const [message,setMessage]=useState('');
+  const [saving,setSaving]=useState(false);
+  const load=()=>request('/exams/submissions/all',{cache:false}).then(data=>{
+    setItems(data.items);
+    setActive(current=>data.items.find(item=>item.id===current?.id)||data.items.find(item=>item.status==='pending_teacher')||data.items[0]||null);
+  });
+  useEffect(()=>{load()},[]);
+  useEffect(()=>{
+    if(!active)return;
+    setGrades(Object.fromEntries(active.details.filter(detail=>detail.type==='solution').map(detail=>[detail.id,{score:detail.score_awarded??'',comment:detail.teacher_comment||detail.feedback||''}])));
+    setOverall(active.overall_comment||'');setMessage('');
+  },[active?.id]);
+  const update=(id,key,value)=>setGrades(current=>({...current,[id]:{...current[id],[key]:value}}));
+  const submit=async()=>{
+    const pending=active.details.filter(detail=>detail.type==='solution'&&detail.grading_status==='pending');
+    if(pending.some(detail=>grades[detail.id]?.score==='')){setMessage('请填写全部解答题分数。');return}
+    setSaving(true);setMessage('');
+    try{
+      const payload={grades:Object.fromEntries(pending.map(detail=>[detail.id,{score:Number(grades[detail.id].score),comment:grades[detail.id].comment||''}])),overall_comment:overall};
+      const graded=await post(`/exams/submissions/${active.id}/grade`,payload);
+      setMessage('批改已完成，成绩和评语已同步到学生端。');setActive(graded);await load();
+    }catch(error){setMessage(error.message)}finally{setSaving(false)}
+  };
+  const pendingCount=items.filter(item=>item.status==='pending_teacher').length;
+  return <><section className="analysis-title"><div><span className="eyebrow"><CheckCircle2 size={15}/>人工评分</span><h1>试卷批改</h1><p>查看学生提交的解答题，逐题评分并填写评语。</p></div></section><div className="grading-layout"><aside className="panel submission-list"><div className="panel-head"><div><h3>提交记录</h3><p>{pendingCount} 份待批改</p></div></div>{items.length===0?<div className="empty">暂无学生提交</div>:items.map(item=><button key={item.id} className={active?.id===item.id?'active':''} onClick={()=>setActive(item)}><span><b>{item.student}</b><small>{item.exam_title} · {item.submitted_at}</small></span><em className={item.status}>{item.status==='pending_teacher'?'待批改':'已完成'}</em></button>)}</aside><section className="panel grading-paper">{!active?<div className="empty">请选择一份试卷</div>:<><div className="panel-head"><div><h3>{active.exam_title}</h3><p>{active.student} · 提交于 {active.submitted_at}</p></div><strong>{active.status==='graded'?`${active.score}/${active.total}`:'待评分'}</strong></div>{active.details.map((detail,index)=><article className="grading-question" key={detail.id}><h4><span>{index+1}</span><em>{questionTypeText(detail.type)}</em>{detail.question}</h4><div className="student-answer"><b>学生答案</b><p>{detail.student_answer||'（未作答）'}</p></div>{detail.type==='solution'?<div className="teacher-grade"><label>得分（满分 {detail.score}）<input type="number" min="0" max={detail.score} step="0.5" disabled={active.status==='graded'} value={grades[detail.id]?.score??''} onChange={event=>update(detail.id,'score',event.target.value)}/></label><label>教师评语<textarea disabled={active.status==='graded'} value={grades[detail.id]?.comment||''} onChange={event=>update(detail.id,'comment',event.target.value)} placeholder="写出得分依据和改进建议"/></label><details><summary>查看参考答案</summary><p>{detail.answer}</p></details></div>:<div className="auto-grade"><span>系统判分：{detail.score_awarded}/{detail.score}</span><p>标准答案：{detail.answer}</p></div>}</article>)}<label className="overall-comment">总评<textarea disabled={active.status==='graded'} value={overall} onChange={event=>setOverall(event.target.value)} placeholder="填写本次作答的整体评价与学习建议"/></label>{message&&<div className="notice">{message}</div>}{active.status==='pending_teacher'&&<button className="primary grade-submit" disabled={saving} onClick={submit}>{saving?'正在保存…':'完成批改并发送给学生'}</button>}</>}</section></div></>
+}
 
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
 
@@ -812,5 +772,5 @@ function Wrongbook({user}) {
   );
 }
 
-function App(){const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
+function App(){const isLoginPage=location.pathname==='/login';const [user,setUser]=useState(()=>{if(isLoginPage)return null;try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user&&!isLoginPage?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
 createRoot(document.getElementById('root')).render(<App/>);

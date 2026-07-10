@@ -13,6 +13,12 @@
 .history-block>button span{display:block;color:#354056;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .history-block>button small{display:block;color:#9aa3b1;font-size:9px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .empty-history{font-size:10px;color:#9aa3b1;line-height:1.6;margin:8px 0 0}
+.history-block>button{width:100%;display:flex;align-items:center;gap:8px;text-align:left}
+.history-block>button .history-text{flex:1;min-width:0}
+.history-block>button .history-text b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-delete{width:28px;height:28px;border-radius:8px;color:#a5adbb;display:grid;place-items:center;opacity:.45;flex:0 0 auto}
+.history-block>button:hover .history-delete{opacity:1}
+.history-delete:hover{background:#fff1f2;color:#c04455}
 .knowledge-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0}
 .secondary-btn{border:1px solid #dfe5f2;background:#fff;color:#59677f;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:8px;font-weight:600}
 .secondary-btn:disabled{opacity:.6;cursor:not-allowed}
@@ -110,3 +116,27 @@
 .markdown-body h4{margin:6px 0 8px;font-size:14px}
 .stream-cursor{display:inline-block;margin-left:2px;color:#5c74e4;animation:blink 1s step-end infinite}
 @keyframes blink{50%{opacity:0}}
+.source-sup{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;min-width:18px;height:18px;border-radius:999px;background:#eef2ff;color:#5570dd;border:1px solid #dce4ff;font-size:10px;font-weight:800;line-height:1;vertical-align:super;cursor:pointer;box-shadow:0 2px 6px #4f67d51a}
+.source-sup:hover{background:#5c74e4;color:#fff;border-color:#5c74e4}
+.source-index{width:20px;height:20px;border-radius:50%;background:#edf1ff;color:#5870dc;display:inline-grid;place-items:center;font-style:normal;font-weight:800;font-size:10px;flex:0 0 20px}
+.source-link:hover .source-index{background:#5c74e4;color:#fff}
+.type-picker{margin:14px 0;background:#f8f9fc;border:1px solid #edf0f4;border-radius:10px;padding:11px}
+.type-picker b{display:block;font-size:11px;color:#5f6879;margin-bottom:8px}
+.type-picker label{display:inline-flex!important;align-items:center;gap:6px;margin:0 12px 0 0!important;font-size:11px}
+.exam-preview{margin-top:18px}
+.preview-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.preview-actions>button:last-child{border:0;background:transparent;color:#9aa2af}
+.preview-questions{display:grid;gap:12px;margin-top:18px}
+.preview-question{border:1px solid #edf0f4;border-radius:13px;padding:15px;display:grid;grid-template-columns:90px 1fr;gap:14px;background:#fbfcff}
+.preview-check{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:#63708a}
+.preview-check span{width:25px;height:25px;border-radius:50%;background:#edf1ff;color:#5b73df;display:grid;place-items:center;font-weight:700}
+.preview-check em,.question-type{font-style:normal;background:#eef2ff;color:#5570dd;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:700;white-space:nowrap}
+.preview-question h4{margin:0 0 8px;font-size:13px;line-height:1.7}
+.preview-question ul{margin:8px 0;padding-left:18px;font-size:11px;color:#626b7d;line-height:1.7}
+.preview-question p{font-size:11px;color:#5f6879;line-height:1.7;margin:6px 0}
+.preview-question small{color:#9aa2af}
+.question h3 .question-type{align-self:flex-start;margin-top:2px}
+.fill-answer{width:calc(100% - 35px);margin-left:35px;border:1px solid #dfe4ed;border-radius:9px;padding:12px}
+.grading-status{margin:16px 0 4px;padding:12px 15px;border-radius:10px;font-size:11px}.grading-status.pending{background:#fff7e8;color:#9b6a20}.grading-status.graded{background:#eef8f3;color:#267b59}.question.pending h3>span{background:#fff3d9;color:#b37a22}.pending-detail{background:#fff8e9;color:#9d6c24}.submit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}.grading-choice{width:min(480px,calc(100vw - 32px));text-align:left}.grading-choice>p{font-size:12px;color:#727b8c}.grading-choice>label{display:flex;gap:12px;border:1px solid #e0e5ed;border-radius:11px;padding:14px;margin:10px 0;cursor:pointer}.grading-choice>label.selected{border-color:#6179e9;background:#f2f5ff}.grading-choice>label span{display:flex;flex-direction:column;gap:5px}.grading-choice>label small{color:#8c94a3;line-height:1.5}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.grading-layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;margin-top:24px;align-items:start}.submission-list{padding:18px;max-height:calc(100vh - 190px);overflow:auto}.submission-list>button{width:100%;display:flex;align-items:center;gap:8px;text-align:left;border:1px solid #edf0f4;background:#fff;border-radius:10px;padding:12px;margin-top:8px}.submission-list>button.active{border-color:#7187ec;background:#f3f5ff}.submission-list>button span{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px}.submission-list>button small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8c95a5}.submission-list>button em{font-style:normal;font-size:9px;white-space:nowrap;border-radius:10px;padding:4px 7px}.submission-list>button em.pending_teacher{background:#fff2dc;color:#aa7020}.submission-list>button em.graded{background:#e8f7ef;color:#27805b}.grading-paper{padding:22px}.grading-paper>.panel-head>strong{color:#5e75e2;font-size:20px}.grading-question{padding:20px 0;border-bottom:1px solid #edf0f4}.grading-question h4{display:flex;align-items:flex-start;gap:8px;margin:0 0 14px;line-height:1.6}.grading-question h4>span{display:grid;place-items:center;min-width:24px;height:24px;border-radius:50%;background:#edf1ff;color:#5c73df}.grading-question h4>em{font-size:9px;font-style:normal;background:#f1f3f7;color:#697385;border-radius:10px;padding:3px 7px;white-space:nowrap}.student-answer,.auto-grade{margin-left:32px;background:#f7f8fb;border-radius:9px;padding:12px}.student-answer p,.auto-grade p{white-space:pre-wrap;line-height:1.7;margin:7px 0 0}.teacher-grade{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:13px 0 0 32px}.teacher-grade label,.overall-comment{font-size:10px;font-weight:600;color:#626c7e}.teacher-grade input,.teacher-grade textarea,.overall-comment textarea{display:block;width:100%;margin-top:6px;border:1px solid #dfe4ed;border-radius:9px;padding:10px;background:#fff}.teacher-grade textarea{min-height:78px;resize:vertical}.teacher-grade details{grid-column:1/-1;font-size:10px;color:#687287}.teacher-grade details p{line-height:1.7;white-space:pre-wrap}.overall-comment{display:block;margin-top:20px}.overall-comment textarea{min-height:90px;resize:vertical}.grade-submit{margin:18px 0 0 auto}.done.pending{color:#aa7020!important}
+@media(max-width:900px){.grading-layout{grid-template-columns:1fr}.submission-list{max-height:300px}.teacher-grade{grid-template-columns:1fr}}

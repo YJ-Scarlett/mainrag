@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from fastapi import HTTPException
@@ -6,32 +7,37 @@ from core.config import settings
 
 
 def _resolve_local_bge_m3() -> str:
-    """优先使用已经下载到 backend/models 的 BGE-M3 本地快照，避免联网 HEAD 检查。"""
+    """优先使用本地 BGE-M3 snapshot，避免访问 HuggingFace。"""
     if settings.local_embedding_model not in {"BAAI/bge-m3", "BAAI/bge-m3/"}:
         return settings.local_embedding_model
 
-    model_root = settings.embedding_cache_dir / "models--BAAI--bge-m3" / "snapshots"
-    if not model_root.exists():
-        return settings.local_embedding_model
+    search_roots = [
+        settings.embedding_cache_dir,
+        settings.backend_dir / "models",
+    ]
+    for cache_dir in search_roots:
+        snapshot_root = cache_dir / "models--BAAI--bge-m3" / "snapshots"
+        if not snapshot_root.exists():
+            continue
 
-    candidates = sorted(model_root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-    for snapshot in candidates:
-        if (
-            snapshot.is_dir()
-            and (snapshot / "modules.json").is_file()
-            and (snapshot / "config_sentence_transformers.json").is_file()
-        ):
-            return str(snapshot)
+        candidates = sorted(snapshot_root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+        for snapshot in candidates:
+            if (
+                snapshot.is_dir()
+                and (snapshot / "modules.json").is_file()
+                and (snapshot / "config_sentence_transformers.json").is_file()
+            ):
+                return str(snapshot)
+
     return settings.local_embedding_model
 
 
 @lru_cache(maxsize=1)
 def _load_sentence_transformer():
-    """加载本地 embedding 模型。
+    """加载本地 embedding 模型，不需要 embedding 密钥。"""
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
-    第一次运行时 sentence-transformers 会把 BAAI/bge-m3 下载到 backend/models。
-    下载完成后再次启动会直接读取本地缓存，不需要 embedding 密钥。
-    """
     try:
         from sentence_transformers import SentenceTransformer
     except ImportError as exc:
@@ -44,13 +50,14 @@ def _load_sentence_transformer():
     kwargs = {"cache_folder": str(settings.embedding_cache_dir), "local_files_only": True}
     if settings.embedding_device:
         kwargs["device"] = settings.embedding_device
+
     try:
         return SentenceTransformer(model_name_or_path, **kwargs)
     except Exception as exc:
         raise HTTPException(
             503,
-            "本地 BGE-M3 模型加载失败。请确认 backend/models 中已经完整下载 BAAI/bge-m3，"
-            "或联网后重新下载模型。原始错误：" + str(exc),
+            "本地 BGE-M3 模型加载失败。请确认 backend/models 或 D:/huggingface_cache 中已经完整下载 BAAI/bge-m3。"
+            f"当前尝试路径：{model_name_or_path}。原始错误：{exc}",
         ) from exc
 
 
