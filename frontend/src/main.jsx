@@ -315,6 +315,20 @@ function MarkdownText({text,sources=[],onSourceClick}){
   return <div className="markdown-body">{blocks}</div>
 }
 
+function formatSourceTime(seconds){
+  const value=Math.max(0,Number(seconds)||0);
+  const minutes=Math.floor(value/60);
+  const rest=Math.floor(value%60);
+  return `${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`
+}
+
+function sourceLocationLabel(source){
+  if(source?.start_time!==undefined&&source?.start_time!==null&&source?.end_time!==undefined&&source?.end_time!==null){
+    return `${formatSourceTime(source.start_time)} - ${formatSourceTime(source.end_time)}`
+  }
+  return source?.page?`第 ${source.page} 页`:`片段 ${source?.chunk||''}`
+}
+
 function Chat({user}){
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
@@ -324,98 +338,40 @@ function Chat({user}){
   const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource=s=>{if(!s?.document_id)return;location.assign(`/${user.role}/knowledge?doc=${encodeURIComponent(s.document_id)}&page=${encodeURIComponent(s.page||'')}&chunk=${encodeURIComponent(s.chunk||'')}`)};
-  const send = async (q = input) => {
-  if (!q.trim() || loading) return;
-  setActiveHistory('');
-  setMessages(m => [...m, { role: 'user', text: q }]);
-  setInput('');
-  setLoading(true);
-  setMessages(m => [...m, { role: 'ai', text: '', sources: [] }]);
-
-  try {
-    const response = await fetch(`${API}/chat/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: q, student: user.name })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`请求失败 (${response.status}): ${errorText}`);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let fullAnswer = '';
-    let sources = [];
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
-
-      // 按行分割，处理每一条 data:
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 保留不完整的行
-
-      for (const line of lines) {
-        if (!line.trim() || !line.startsWith('data: ')) continue;
-        const jsonStr = line.replace(/^data: /, '').trim();
-        if (jsonStr === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          if (parsed.type === 'delta') {
-            fullAnswer += parsed.content || '';
-            setMessages(m => {
-              const newMessages = [...m];
-              const last = newMessages[newMessages.length - 1];
-              if (last.role === 'ai') last.text = fullAnswer;
-              return newMessages;
-            });
-          } else if (parsed.type === 'sources') {
-            sources = parsed.sources || [];
-          } else if (parsed.type === 'done') {
-            // 当收到 done 时，使用完整的 answer
-            if (parsed.answer) {
-              fullAnswer = parsed.answer;
-              setMessages(m => {
-                const newMessages = [...m];
-                const last = newMessages[newMessages.length - 1];
-                if (last.role === 'ai') last.text = fullAnswer;
-                return newMessages;
-              });
-            }
-          }
-        } catch (e) {
-          console.warn('解析流式数据失败:', e, jsonStr);
+  const send=async(q=input)=>{
+    if(!q.trim()||loading)return;
+    const question=q.trim();
+    setActiveHistory('');
+    setMessages(m=>[...m,{role:'user',text:question},{role:'ai',text:'',sources:[],streaming:true}]);
+    setInput('');
+    setLoading(true);
+    try{
+      let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
+      const response=await fetch(API+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',...(role?{'X-Role':role}:{})},body:JSON.stringify({message:question,student:user.name})});
+      if(!response.ok){let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}throw new Error(data.detail||'请求失败')}
+      const reader=response.body.getReader();
+      const decoder=new TextDecoder('utf-8');
+      let buffer='';
+      while(true){
+        const {value,done}=await reader.read();
+        if(done)break;
+        buffer+=decoder.decode(value,{stream:true});
+        const events=buffer.split('\n\n');
+        buffer=events.pop()||'';
+        for(const raw of events){
+          const line=raw.split('\n').find(x=>x.startsWith('data:'));
+          if(!line)continue;
+          const event=JSON.parse(line.slice(5).trim());
+          if(event.type==='delta')appendToLastAi({append:event.content,streaming:true});
+          if(event.type==='sources')appendToLastAi({sources:event.sources||[]});
+          if(event.type==='done')appendToLastAi({text:event.answer,sources:event.sources||[],streaming:false});
         }
       }
-    }
-
-    // 更新 sources
-    setMessages(m => {
-      const newMessages = [...m];
-      const last = newMessages[newMessages.length - 1];
-      if (last.role === 'ai') last.sources = sources;
-      return newMessages;
-    });
-
-    loadHistory();
-  } catch (e) {
-    setMessages(m => {
-      const newMessages = [...m];
-      const last = newMessages[newMessages.length - 1];
-      if (last.role === 'ai') last.text = e.message || '网络错误，请稍后重试';
-      return newMessages;
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和页面`}><i className="source-index">{j+1}</i><span>{s.document} · {s.page?`第 ${s.page} 页`:`片段 ${s.chunk}`}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
+      loadHistory();
+    }catch(e){appendToLastAi({text:e.message,streaming:false})}
+    finally{setLoading(false)}
+  };
+  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer"><div><textarea placeholder="输入你的问题，Enter 发送…" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染，请结合课堂内容判断</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确。</p></div></aside></div>
 }
 
 function Knowledge({user}) {
@@ -428,11 +384,13 @@ function Knowledge({user}) {
   useEffect(()=>{if(!docs.some(d=>d.preview_status==='processing'))return;const timer=setInterval(()=>load(true),3000);return()=>clearInterval(timer)},[docs]);
   useEffect(()=>{if(!selected||selected.preview_status!=='processing')return;const timer=setInterval(()=>request('/knowledge/'+selected.id,{cache:false}).then(setSelected).catch(()=>{}),3000);return()=>clearInterval(timer)},[selected]);
   const view=async(id,page='')=>{try{setTargetPage(page);setSelected(await request('/knowledge/'+id))}catch(e){setMsg(e.message)}};
-  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage('正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage('上传完成，预览后台处理中');setMsg(data.message||'上传成功，预览正在后台生成');load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
+  const upload=e=>{const file=e.target.files[0];if(!file)return;e.target.value='';const isMedia=/\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name);setUploading(true);setProgress(0);setStage('正在上传文件');setUploadName(file.name);setMsg('');const fd=new FormData();fd.append('file',file);fd.append('category','课程资料');const xhr=new XMLHttpRequest();let timer;xhr.open('POST',API+'/knowledge/upload');xhr.setRequestHeader('X-Role','teacher');xhr.upload.onprogress=event=>{if(event.lengthComputable)setProgress(Math.round(event.loaded/event.total*65))};xhr.upload.onload=()=>{setProgress(p=>Math.max(p,66));setStage(isMedia?'正在转写音视频并建立向量索引':'正在解析文档并建立向量索引');timer=setInterval(()=>setProgress(p=>p<94?p+1:p),700)};xhr.onload=()=>{clearInterval(timer);let data={};try{data=JSON.parse(xhr.responseText)}catch{}if(xhr.status>=200&&xhr.status<300){setProgress(100);setStage(isMedia?'上传完成，音视频已转写入库':'上传完成，预览后台处理中');setMsg(data.message||(isMedia?'上传成功，音视频已转写并可用于检索问答':'上传成功，预览正在后台生成'));load(true);setTimeout(()=>setUploading(false),800)}else{setUploading(false);setMsg(data.detail||'上传处理失败')}};xhr.onerror=()=>{clearInterval(timer);setUploading(false);setMsg('网络错误，上传失败')};xhr.send(fd)};
   const del=async id=>{if(!confirm('确定删除这份资料吗？'))return;await request('/knowledge/'+id,{method:'DELETE'});if(selected?.id===id)setSelected(null);load(true)};
   const reindex=async()=>{setReindexing(true);setMsg('');try{const d=await post('/knowledge/reindex',{});setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`);load(true)}catch(e){setMsg(e.message)}finally{setReindexing(false)}};
-  const previewText=d=>d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
-  const canPreview=d=>d.has_preview||d.preview_status==='ready';
+  const previewText=d=>d.source_kind==='media'?'可播放':d.preview_status==='processing'?'正在处理预览':(d.has_preview||d.preview_status==='ready')?'可查看':d.preview_status==='failed'?'预览失败':'暂无预览';
+  const canPreview=d=>d.source_kind==='media'||d.has_preview||d.preview_status==='ready';
+  const isVideo=d=>['MP4','MOV','AVI','MKV','WEBM','WMV','FLV'].includes((d?.extension||'').toUpperCase());
+  const isAudio=d=>['MP3','WAV','M4A','AAC','FLAC','OGG','WMA'].includes((d?.extension||'').toUpperCase());
   return <>
     <section className="knowledge-head">
       <div>
@@ -442,7 +400,7 @@ function Knowledge({user}) {
       </div>
       {isTeacher&&<div className="knowledge-actions">
         <button className="secondary-btn" onClick={reindex} disabled={reindexing||uploading}><Sparkles/>{reindexing?'正在重建…':'重建向量索引'}</button>
-        <label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf" onChange={upload} disabled={uploading}/></label>
+        <label className="primary upload-btn"><Upload/>{uploading?'正在处理…':'上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf,.mp3,.wav,.m4a,.aac,.flac,.ogg,.wma,.mp4,.mov,.avi,.mkv,.webm,.wmv,.flv" onChange={upload} disabled={uploading}/></label>
       </div>}
     </section>
 
@@ -456,7 +414,7 @@ function Knowledge({user}) {
     </div>
 
     <section className="panel table-panel">
-      <div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF</p></div></div>
+      <div className="panel-head"><div><h3>{isTeacher?'全部资料':'教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频</p></div></div>
       <div className="doc-table">
         <div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>预览</span></div>
         {docs.map(d=><div className="tr" key={d.id}>
@@ -474,9 +432,13 @@ function Knowledge({user}) {
 
     {selected&&<section className="panel document-reader">
       <div className="reader-head"><div><span className="eyebrow"><FileText size={14}/>{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage?` · 已定位到第 ${targetPage} 页`:''}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
-      {selected.has_preview
-        ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
-        : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
+      {selected.source_kind==='media'&&isVideo(selected)
+        ? <video className="media-player video-player" controls src={`${API}/knowledge/${selected.id}/media`} title={selected.name}/>
+        : selected.source_kind==='media'&&isAudio(selected)
+          ? <div className="audio-preview"><FileText/><b>{selected.name}</b><audio className="media-player audio-player" controls src={`${API}/knowledge/${selected.id}/media`}/></div>
+          : selected.has_preview
+            ? <iframe key={`${selected.id}-${targetPage||'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage?`#page=${targetPage}&zoom=page-width`:''}`} title={selected.name}/>
+            : <div className="no-preview"><AlertCircle/><b>{selected.preview_status==='processing'?'原版式预览正在处理中':'暂无原版式预览'}</b><p>{selected.preview_status==='processing'?'上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。':(selected.preview_error||'该文件暂时没有可查看的原版式预览。')}</p></div>}
     </section>}
   </>
 }

@@ -1,3 +1,5 @@
+import mimetypes
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
@@ -7,6 +9,7 @@ from services.document_service import (
     delete_document,
     generate_document_preview,
     get_document,
+    get_media_path,
     get_preview_path,
     list_documents,
     rebuild_knowledge_vectors,
@@ -42,6 +45,18 @@ def preview_document(document_id: str):
     )
 
 
+@router.get("/{document_id}/media")
+def preview_media(document_id: str):
+    path = get_media_path(document_id)
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return FileResponse(
+        path,
+        media_type=media_type,
+        content_disposition_type="inline",
+        filename=path.name,
+    )
+
+
 @router.post("/upload")
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -56,7 +71,8 @@ async def upload_document(
         for key, value in item.items()
         if key not in {"content", "stored_path", "preview_path"}
     } | {"has_preview": bool(item.get("preview_path"))}
-    return {"message": "上传、解析并建立向量索引成功，预览正在后台生成", "item": public_item}
+    message = "上传、转写并建立向量索引成功，可在线播放预览" if item.get("source_kind") == "media" else "上传、解析并建立向量索引成功，预览正在后台生成"
+    return {"message": message, "item": public_item}
 
 
 @router.post("/reindex")

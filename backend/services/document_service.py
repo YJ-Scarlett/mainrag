@@ -6,27 +6,31 @@ from fastapi import HTTPException, UploadFile
 
 from core.config import settings
 from services.document_parser import SUPPORTED_EXTENSIONS, create_pdf_preview, extract_text
+from services.media_parser import SUPPORTED_MEDIA_EXTENSIONS, transcribe_media
 from services.retrieval_service import index_document, rebuild_all_vectors, split_chunks
 from services.vector_store import delete_document_vectors
 from storage.json_store import store
+
+SUPPORTED_UPLOAD_EXTENSIONS = SUPPORTED_EXTENSIONS | SUPPORTED_MEDIA_EXTENSIONS
 
 
 async def add_document(file: UploadFile, category: str) -> dict:
     raw = await file.read()
     filename = file.filename or "未命名资料"
     suffix = Path(filename).suffix.lower()
-    if suffix not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(400, "仅支持 DOC、DOCX、PPT、PPTX 和 PDF 文件。")
+    if suffix not in SUPPORTED_UPLOAD_EXTENSIONS:
+        raise HTTPException(400, "仅支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频文件。")
 
     target = settings.upload_dir / f"{uuid.uuid4().hex}{suffix}"
     target.write_bytes(raw)
 
-    content = extract_text(target)
+    is_media = suffix in SUPPORTED_MEDIA_EXTENSIONS
+    content = transcribe_media(target) if is_media else extract_text(target)
     if not content.strip():
         target.unlink(missing_ok=True)
         raise HTTPException(
             400,
-            "文件中未提取到可用于知识库的文字。请上传可复制文字的文档；如果是扫描版 PDF 或图片型 PPT，请先 OCR 识别后再上传。",
+            "文件中未提取到可用于知识库的文字。文档请上传可复制文字的文件；音视频请确认包含清晰语音。",
         )
 
     item = {
@@ -39,8 +43,9 @@ async def add_document(file: UploadFile, category: str) -> dict:
         "extension": suffix.lstrip(".").upper(),
         "stored_path": target.name,
         "preview_path": "",
-        "preview_status": "processing",
-        "preview_error": "",
+        "preview_status": "failed" if is_media else "processing",
+        "preview_error": "音视频资料已完成转写并入库，暂不提供原版式预览。" if is_media else "",
+        "source_kind": "media" if is_media else "document",
     }
 
     await index_document(item)
@@ -61,6 +66,13 @@ def generate_document_preview(document_id: str) -> None:
         return
 
     target = settings.upload_dir / stored_path
+    if target.suffix.lower() in SUPPORTED_MEDIA_EXTENSIONS:
+        document["preview_path"] = ""
+        document["preview_status"] = "failed"
+        document["preview_error"] = "音视频资料已完成转写并入库，暂不提供原版式预览。"
+        store.save(data)
+        return
+
     preview = settings.upload_dir / f"{target.stem}-preview.pdf"
     document["preview_status"] = "processing"
     document["preview_error"] = ""
@@ -135,6 +147,20 @@ def get_preview_path(document_id: str) -> Path:
     return path
 
 
+def get_media_path(document_id: str) -> Path:
+    document = get_document(document_id)
+    stored_path = document.get("stored_path")
+    if document.get("source_kind") != "media" or not stored_path:
+        raise HTTPException(404, "该资料不是音视频文件。")
+
+    path = (settings.upload_dir / stored_path).resolve()
+    if settings.upload_dir.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(404, "音视频文件不存在。")
+    if path.suffix.lower() not in SUPPORTED_MEDIA_EXTENSIONS:
+        raise HTTPException(404, "该资料不是支持预览的音视频格式。")
+    return path
+
+
 def delete_document(document_id: str) -> None:
     data = store.load()
     document = next((item for item in data["documents"] if item["id"] == document_id), None)
@@ -152,5 +178,19 @@ def delete_document(document_id: str) -> None:
 
 
 async def rebuild_knowledge_vectors() -> dict:
+    data = store.load()
+    changed = False
+    for document in data["documents"]:
+        if document.get("source_kind") != "media" or "[[TIME:" in (document.get("content") or ""):
+            continue
+        stored_path = document.get("stored_path")
+        if not stored_path:
+            continue
+        target = settings.upload_dir / stored_path
+        if target.exists():
+            document["content"] = transcribe_media(target)[:200000]
+            changed = True
+    if changed:
+        store.save(data)
     total = await rebuild_all_vectors()
     return {"documents": len(store.load()["documents"]), "chunks": total}

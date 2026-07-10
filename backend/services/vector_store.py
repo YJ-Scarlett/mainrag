@@ -41,6 +41,8 @@ def replace_document_vectors(document_id: str, rows: list[dict]) -> None:
                 "document": row["document"],
                 "chunk": row["chunk"],
                 "page": row.get("page") or 0,
+                "start_time": row.get("start_time") if row.get("start_time") is not None else -1,
+                "end_time": row.get("end_time") if row.get("end_time") is not None else -1,
             }
             for row in rows
         ],
@@ -80,12 +82,16 @@ def query_vectors(query_embedding: list[float], top_k: int = 5) -> list[dict]:
     rows = []
     for content, metadata, distance in zip(documents, metadatas, distances):
         score = max(0.0, min(1.0, 1 - float(distance)))
+        start_time = metadata.get("start_time", -1)
+        end_time = metadata.get("end_time", -1)
         rows.append({
             "document_id": metadata.get("document_id"),
             "document": metadata.get("document"),
             "content": content,
             "chunk": metadata.get("chunk"),
             "page": metadata.get("page") or None,
+            "start_time": start_time if isinstance(start_time, (int, float)) and start_time >= 0 else None,
+            "end_time": end_time if isinstance(end_time, (int, float)) and end_time >= 0 else None,
             "score": round(score, 4),
         })
     return rows
