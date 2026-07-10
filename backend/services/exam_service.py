@@ -1,6 +1,7 @@
 import json
 import re
 import uuid
+from copy import deepcopy
 from datetime import datetime
 
 import httpx
@@ -124,27 +125,113 @@ def delete_exam(exam_id: str) -> None:
     data["exams"] = remaining; store.save(data)
 
 
-def submit_exam(exam_id: str, student: str, answers: dict[str, str]) -> dict:
+async def _grade_solutions_with_ai(questions: list[dict], answers: dict[str, str]) -> dict[str, dict]:
+    if not questions:
+        return {}
+    if not settings.deepseek_api_key:
+        raise HTTPException(503, "尚未配置 DEEPSEEK_API_KEY，无法使用 AI 批改解答题")
+    grading_items = [
+        {
+            "id": question["id"],
+            "question": question["question"],
+            "reference_answer": question["answer"],
+            "student_answer": str(answers.get(question["id"], "")).strip(),
+            "max_score": question["score"],
+        }
+        for question in questions
+    ]
+    prompt = f"""你是一名严谨的课程教师。请依据题目和参考答案批改学生的解答题。
+按要点给分，空白答案得 0 分；分数不能超过 max_score。请为每题给出简短、具体的中文评语。
+严格返回 JSON 数组，不要输出 Markdown。每项格式：
+{{"id":"题目ID","score":数字,"comment":"评分理由和改进建议"}}
+
+待批改内容：
+{json.dumps(grading_items, ensure_ascii=False)}"""
+    payload = {
+        "model": settings.deepseek_model,
+        "temperature": 0.1,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            response = await client.post(
+                f"{settings.deepseek_base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
+                json=payload,
+            )
+            response.raise_for_status()
+            rows = _parse_json(response.json()["choices"][0]["message"]["content"])
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(502, f"DeepSeek 批改失败：{exc.response.text[:300]}") from exc
+    except (httpx.HTTPError, KeyError, IndexError) as exc:
+        raise HTTPException(502, f"DeepSeek 批改服务异常：{exc}") from exc
+
+    maximums = {item["id"]: float(item["score"]) for item in questions}
+    result = {}
+    for row in rows:
+        question_id = str(row.get("id", ""))
+        if question_id not in maximums:
+            continue
+        try:
+            score = float(row.get("score", 0))
+        except (TypeError, ValueError):
+            score = 0
+        result[question_id] = {
+            "score": max(0, min(maximums[question_id], score)),
+            "comment": str(row.get("comment", "AI 已完成评分")),
+        }
+    for question in questions:
+        result.setdefault(question["id"], {"score": 0, "comment": "AI 未返回有效评分，请联系教师复核"})
+    return result
+
+
+async def submit_exam(exam_id: str, student: str, answers: dict[str, str], solution_grading: str = "ai") -> dict:
     data = store.load(); exam = next((item for item in data["exams"] if item["id"] == exam_id and item["status"] == "published"), None)
     if not exam: raise HTTPException(404, "已发布习题不存在")
+    if solution_grading not in {"ai", "teacher"}:
+        raise HTTPException(400, "解答题批改方式只能选择 ai 或 teacher")
+    solution_questions = [question for question in exam["questions"] if question.get("type") == "solution"]
+    ai_grades = await _grade_solutions_with_ai(solution_questions, answers) if solution_grading == "ai" else {}
     details, earned, total = [], 0, 0
     for question in exam["questions"]:
         student_answer = str(answers.get(question["id"], "")).strip()
         standard_answer = str(question["answer"]).strip()
         if question.get("type") == "solution":
-            correct = bool(student_answer) and (
-                student_answer.lower() == standard_answer.lower()
-                or standard_answer.lower() in student_answer.lower()
-                or student_answer.lower() in standard_answer.lower()
-            )
+            if solution_grading == "ai":
+                grade = ai_grades[question["id"]]
+                awarded = grade["score"]
+                feedback = grade["comment"]
+                grading_status = "graded"
+                correct = awarded >= float(question["score"]) * 0.6
+            else:
+                awarded = None
+                feedback = "已提交教师批改"
+                grading_status = "pending"
+                correct = None
         else:
             correct = student_answer.lower() == standard_answer.lower()
+            awarded = question["score"] if correct else 0
+            feedback = question.get("analysis", "")
+            grading_status = "graded"
         total += question["score"]
-        if correct: earned += question["score"]
-        details.append({**question, "student_answer": student_answer, "correct": correct})
+        if awarded is not None:
+            earned += awarded
+        details.append({
+            **question,
+            "student_answer": student_answer,
+            "correct": correct,
+            "score_awarded": awarded,
+            "feedback": feedback,
+            "grading_status": grading_status,
+            "grading_method": solution_grading if question.get("type") == "solution" else "auto",
+        })
+    pending_teacher = solution_grading == "teacher" and bool(solution_questions)
     submission = {
         "id": uuid.uuid4().hex[:10], "exam_id": exam_id, "exam_title": exam["title"], "student": student,
-        "score": earned, "total": total, "accuracy": round(earned / total * 100) if total else 0,
+        "score": round(earned, 1), "total": total,
+        "accuracy": None if pending_teacher else (round(earned / total * 100) if total else 0),
+        "status": "pending_teacher" if pending_teacher else "graded",
+        "solution_grading": solution_grading,
         "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": details,
     }
     data["submissions"] = [item for item in data["submissions"] if not (item["exam_id"] == exam_id and item["student"] == student)]
@@ -153,13 +240,70 @@ def submit_exam(exam_id: str, student: str, answers: dict[str, str]) -> dict:
 
 
 def student_submissions(student: str) -> list[dict]:
-    return [item for item in store.load()["submissions"] if item["student"] == student]
+    return [student_submission_view(item) for item in store.load()["submissions"] if item["student"] == student]
+
+
+def student_submission_view(submission: dict) -> dict:
+    result = deepcopy(submission)
+    if result.get("status") == "pending_teacher":
+        for detail in result.get("details", []):
+            if detail.get("type") == "solution" and detail.get("grading_status") == "pending":
+                detail.pop("answer", None)
+                detail.pop("analysis", None)
+    return result
+
+
+def list_submissions(status: str | None = None) -> list[dict]:
+    items = store.load()["submissions"]
+    if status:
+        items = [item for item in items if item.get("status", "graded") == status]
+    return items
+
+
+def grade_submission(submission_id: str, grades: dict[str, dict], overall_comment: str = "") -> dict:
+    data = store.load()
+    submission = next((item for item in data["submissions"] if item["id"] == submission_id), None)
+    if not submission:
+        raise HTTPException(404, "提交记录不存在")
+    if submission.get("status") != "pending_teacher":
+        raise HTTPException(400, "该试卷不处于待教师批改状态")
+
+    pending_ids = {
+        detail["id"] for detail in submission["details"]
+        if detail.get("type") == "solution" and detail.get("grading_status") == "pending"
+    }
+    if not pending_ids or not pending_ids.issubset(grades.keys()):
+        raise HTTPException(400, "请为全部待批改解答题填写分数")
+
+    for detail in submission["details"]:
+        if detail["id"] not in pending_ids:
+            continue
+        grade = grades[detail["id"]]
+        maximum = float(detail["score"])
+        score = float(grade.get("score", 0))
+        if score < 0 or score > maximum:
+            raise HTTPException(400, f"题目“{detail['question'][:20]}”的分数应在 0 到 {maximum:g} 之间")
+        detail["score_awarded"] = score
+        detail["feedback"] = str(grade.get("comment", "")).strip()
+        detail["teacher_comment"] = detail["feedback"]
+        detail["grading_status"] = "graded"
+        detail["grading_method"] = "teacher"
+        detail["correct"] = score >= maximum * 0.6
+
+    earned = sum(float(detail.get("score_awarded") or 0) for detail in submission["details"])
+    submission["score"] = round(earned, 1)
+    submission["accuracy"] = round(earned / submission["total"] * 100) if submission["total"] else 0
+    submission["status"] = "graded"
+    submission["overall_comment"] = overall_comment.strip()
+    submission["graded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    store.save(data)
+    return submission
 
 
 def wrong_questions(student: str) -> list[dict]:
     result = []
     for submission in student_submissions(student):
         for detail in submission["details"]:
-            if not detail["correct"]:
+            if detail.get("grading_status", "graded") == "graded" and detail.get("correct") is False:
                 result.append({**detail, "exam_id": submission["exam_id"], "exam_title": submission["exam_title"], "submitted_at": submission["submitted_at"]})
     return result

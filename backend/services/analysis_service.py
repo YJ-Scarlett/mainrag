@@ -9,10 +9,15 @@ def build_analysis(student: str | None = None) -> dict:
         topics.setdefault(item["topic"], []).append(item["score"])
     average = round(sum(item["score"] for item in activities) / len(activities)) if activities else 0
     questions = [item for item in data["questions"] if not student or item["student"] == student]
-    submissions = [item for item in data["submissions"] if not student or item["student"] == student]
+    submissions = [
+        item for item in data["submissions"]
+        if (not student or item["student"] == student) and item.get("status", "graded") == "graded"
+    ]
     exam_topics: dict[str, list[int]] = {}
     for submission in submissions:
         for detail in submission["details"]:
+            if detail.get("grading_status", "graded") != "graded":
+                continue
             exam_topics.setdefault(detail["knowledge_point"], []).append(100 if detail["correct"] else 0)
     for topic, scores in exam_topics.items():
         topics.setdefault(topic, []).extend(scores)
