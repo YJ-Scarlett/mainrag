@@ -794,10 +794,10 @@ function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExam
 function Wrongbook({user}) {
   const [items, setItems] = useState([]);
   const [mastery, setMastery] = useState([]);
-  const [filter, setFilter] = useState(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('knowledge') || '';
-  });
+  const [filters, setFilters] = useState(() => {
+  const params = new URLSearchParams(location.search);
+  return params.getAll('knowledge');
+});
   const [loading, setLoading] = useState(true);
 
   // 加载错题和学情数据
@@ -819,32 +819,52 @@ function Wrongbook({user}) {
 
   // 监听 URL 变化（popstate 和 pushState 触发）
   useEffect(() => {
-    const onPop = () => {
-      const params = new URLSearchParams(location.search);
-      setFilter(params.get('knowledge') || '');
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  const onPop = () => {
+    const params = new URLSearchParams(location.search);
+    setFilters(params.getAll('knowledge'));
+  };
+
+  window.addEventListener('popstate', onPop);
+
+  return () => {
+    window.removeEventListener('popstate', onPop);
+  };
+}, []);
 
   // 点击标签：更新 URL 并设置 filter
   const handleTagClick = (topic) => {
-    const url = topic
-      ? `/student/wrongbook?knowledge=${encodeURIComponent(topic)}`
+  setFilters(previous => {
+    // 点击“清除筛选”
+    if (!topic) {
+      history.pushState(null, '', '/student/wrongbook');
+      return [];
+    }
+
+    // 已选择则取消，未选择则添加
+    const next = previous.includes(topic)
+      ? previous.filter(item => item !== topic)
+      : [...previous, topic];
+
+    // 把多个知识点写入 URL
+    const params = new URLSearchParams();
+    next.forEach(item => params.append('knowledge', item));
+
+    const query = params.toString();
+    const url = query
+      ? `/student/wrongbook?${query}`
       : '/student/wrongbook';
+
     history.pushState(null, '', url);
-    setFilter(topic || '');
-  };
+    return next;
+  });
+};
 
-  // 过滤错题
-  const filteredItems = filter
-    ? items.filter(q => q.knowledge_point === filter)
-    : items;
+  // 过滤错题：未选择时显示全部，选择多个时显示任一知识点对应的错题
+const filteredItems = filters.length > 0
+  ? items.filter(q => filters.includes(q.knowledge_point))
+  : items;
 
-  // 计算当前筛选知识点的掌握度
-  const currentMastery = mastery.find(m => m.topic === filter);
-
-  return (
+ return (
     <>
       <section className="analysis-title">
         <div>
@@ -865,18 +885,20 @@ function Wrongbook({user}) {
               style={{
                 padding: '4px 14px',
                 borderRadius: '20px',
-                background: filter === m.topic ? '#5577ee' : '#eef1f7',
-                color: filter === m.topic ? '#fff' : '#333',
+                background: filters.includes(m.topic) ? '#5577ee' : '#eef1f7',
+                color: filters.includes(m.topic) ? '#fff' : '#333',
                 cursor: 'pointer',
                 fontSize: '14px',
                 transition: '0.2s',
-                border: filter === m.topic ? '1px solid #5577ee' : '1px solid transparent',
+                border: filters.includes(m.topic)
+  ? '1px solid #5577ee'
+  : '1px solid transparent',
               }}
             >
               {m.topic} {m.score}%
             </span>
           ))}
-          {filter && (
+          {filters.length > 0 && (
             <button
               onClick={() => handleTagClick('')}
               style={{
@@ -895,23 +917,20 @@ function Wrongbook({user}) {
       )}
 
       {/* 筛选提示 */}
-      {filter && (
-        <div style={{ marginBottom: '16px', color: '#5577ee' }}>
-          当前筛选：<strong>{filter}</strong>
-          {currentMastery && `（掌握度 ${currentMastery.score}%）`}
-          {filteredItems.length === 0 && '，暂无相关错题'}
-        </div>
-      )}
+      {/* 筛选提示 */}
+
 
       <div className="wrong-list">
-        {loading ? (
-          <div className="panel empty">加载中...</div>
-        ) : filteredItems.length === 0 ? (
-          <div className="panel empty">
-            {filter ? <CheckCircle2/> : <CheckCircle2/>}
-            {filter ? '该知识点暂无错题，继续保持！' : '暂无错题，继续保持！'}
-          </div>
-        ) : (
+  {loading ? (
+    <div className="panel empty">加载中...</div>
+  ) : filteredItems.length === 0 ? (
+    <div className="panel empty">
+      <CheckCircle2 />
+      {filters.length > 0
+        ? '所选知识点暂无错题，继续保持！'
+        : '暂无错题，继续保持！'}
+    </div>
+  ) : (
           filteredItems.map((q, i) => (
             <article className="panel wrong-item" key={q.exam_id + q.id}>
               <div className="wrong-meta">
