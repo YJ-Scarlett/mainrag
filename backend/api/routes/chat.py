@@ -2,11 +2,12 @@ import json
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from schemas.chat import ChatRequest
 from services.deepseek_service import generate_answer, stream_answer
+from services.photo_ocr_service import extract_question_text
 from services.retrieval_service import retrieve
 from storage.json_store import store
 
@@ -80,6 +81,28 @@ async def chat_stream(body: ChatRequest):
         yield _sse({"type": "done", "answer": answer, "sources": references})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/chat/photo-search")
+async def photo_search(student: str = Form("张同学"), file: UploadFile = File(...)):
+    ocr_text = await extract_question_text(file)
+    question = (
+        "请根据下面拍照识别出的题目进行解答。"
+        "如果是选择题，请给出正确选项和理由；如果是填空题或解答题，请给出步骤和结论。\n\n"
+        f"题目内容：\n{ocr_text}"
+    )
+    references = await retrieve(ocr_text, 3)
+    if not references or references[0]["score"] <= .2:
+        answer = LOW_CONFIDENCE_ANSWER
+    else:
+        answer = await generate_answer(question, references)
+    _save_chat(student, f"拍照搜题：\n{ocr_text}", answer, references)
+    return {
+        "ocr_text": ocr_text,
+        "question": question,
+        "answer": answer,
+        "sources": references,
+    }
 
 
 @router.get("/chat/history")
