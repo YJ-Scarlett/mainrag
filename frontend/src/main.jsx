@@ -698,7 +698,29 @@ function StudentExams({user}) {
       {showConfirm&&<div className="modal-overlay" onClick={()=>!submitting&&setShowConfirm(false)}><div className="modal-box grading-choice" onClick={event=>event.stopPropagation()}><h3>确认提交本次练习</h3>{hasSolutions&&<><p>本试卷包含解答题，请选择批改方式：</p><label className={gradingMode==='ai'?'selected':''}><input type="radio" checked={gradingMode==='ai'} onChange={()=>setGradingMode('ai')}/><span><b>AI 批改</b><small>提交后由 DeepSeek 按参考答案即时评分并给出评语</small></span></label><label className={gradingMode==='teacher'?'selected':''}><input type="radio" checked={gradingMode==='teacher'} onChange={()=>setGradingMode('teacher')}/><span><b>教师批改</b><small>提交到教师端，等待教师评分并填写评语</small></span></label></>}<div className="modal-actions"><button className="secondary-btn" disabled={submitting} onClick={()=>setShowConfirm(false)}>取消</button><button className="primary" disabled={submitting} onClick={doSubmit}>{submitting?'正在提交…':'确认提交'}</button></div></div></div>}
     </section>
   }
-  return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>解答题可选择 AI 即时批改，也可提交教师评分并获得评语。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className={`done ${done.status==='pending_teacher'?'pending':''}`}><CheckCircle2/>{done.status==='pending_teacher'?'待教师批改':`已完成 ${done.accuracy}%`}</span>}</div><button onClick={()=>open(exam)}>{done?'查看结果':'开始练习'}<ChevronRight/></button></article>})}</div></>
+  return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>解答题可选择 AI 即时批改，也可提交教师评分并获得评语。</p></div></section>
+  {/* 顶部统计卡片 */}
+<div className="exam-stats">
+  <div className="exam-stat">
+    <span className="exam-stat-number">{items.length}</span>
+    <span className="exam-stat-label">总习题</span>
+  </div>
+  <div className="exam-stat">
+    <span className="exam-stat-number">{subs.length}</span>
+    <span className="exam-stat-label">已完成</span>
+  </div>
+  <div className="exam-stat">
+    <span className="exam-stat-number">
+      {items.length > 0 ? Math.round((subs.length / items.length) * 100) : 0}%
+    </span>
+    <span className="exam-stat-label">完成率</span>
+  </div>
+  <div className="exam-stat">
+    <span className="exam-stat-number">{items.length - subs.length}</span>
+    <span className="exam-stat-label">待练习</span>
+  </div>
+</div>
+  <div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className={`done ${done.status==='pending_teacher'?'pending':''}`}><CheckCircle2/>{done.status==='pending_teacher'?'待教师批改':`已完成 ${done.accuracy}%`}</span>}</div><button onClick={()=>open(exam)}>{done?'查看结果':'开始练习'}<ChevronRight/></button></article>})}</div></>
 }
 
 function TeacherGrading(){
