@@ -4,6 +4,11 @@ import {AlertCircle, BookOpen, Bot, Camera, ChartNoAxesCombined, CheckCircle2, C
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import './styles.css';
 import { RefreshCw } from 'lucide-react';
+import EmptyFolder from './assets/illustrations/empty-folder.svg';
+import EmptyQuestions from './assets/illustrations/empty-questions.svg';
+import EmptyCelebration from './assets/illustrations/empty-celebration.svg';
+import WelcomeLearning from './assets/illustrations/welcome-learning.svg';
+import UploadCloud from './assets/illustrations/upload-cloud.svg';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const requestCache=new Map();
@@ -172,21 +177,12 @@ function Shell({ user, onLogout }) {
         <div>
           <small>{user.role === 'teacher' ? '教师工作台' : '我的学习空间'}</small>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-            {/* 方案二：标题前加装饰图标 */}
-            <span style={{ fontSize: '18px' }}>
-              {page === 'dashboard' && '📊'}
-              {page === 'knowledge' && '📚'}
-              {page === 'exams' && '📝'}
-              {page === 'wrongbook' && '📒'}
-              {page === 'chat' && '💬'}
-              {page === 'analysis' && '📈'}
-            </span>
             {title}
           </h2>
         </div>
       </div>
 
-      {/* 方案四：刷新按钮 — 靠近用户那一侧 */}
+      {/* 刷新按钮保留 */}
       <button
         onClick={() => window.location.reload()}
         style={{
@@ -199,7 +195,7 @@ function Shell({ user, onLogout }) {
           alignItems: 'center',
           borderRadius: '6px',
           transition: 'all 0.2s',
-          marginRight: '12px',  // 与用户头像间隔一点距离
+          marginRight: '12px',
         }}
         onMouseEnter={(e) => { e.currentTarget.style.background = '#f0f2f5'; e.currentTarget.style.color = '#5c74e4'; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9aa2b0'; }}
@@ -237,20 +233,23 @@ function Dashboard({user, go}) {
     <>
       <section className="welcome">
         <div>
-          <span className="eyebrow"><Sparkles size={14}/>{role === 'teacher' ? '智能教学助手' : '今日学习建议'}</span>
+          <span className="eyebrow"><Sparkles size={14} />{role === 'teacher' ? '智能教学助手' : '今日学习建议'}</span>
           <h1>下午好，{user.name} 👋</h1>
           <p>{role === 'teacher' ? '班级整体表现平稳，建议重点关注薄弱知识点。' : '保持好奇，今天也从一个好问题开始吧。'}</p>
         </div>
-        <button className="primary" onClick={() => go('chat')}><MessageCircle/>开始问答</button>
+        <div className="welcome-right">
+          <img src={WelcomeLearning} alt="学习插画" className="welcome-illustration" />
+          <button className="primary" onClick={() => go('chat')}><MessageCircle />开始问答</button>
+        </div>  {/* 👈 这个 </div> 要存在 */}
       </section>
       <div className="stats">
-        <Stat icon={role === 'teacher' ? Users : ChartNoAxesCombined} 
-              label={role === 'teacher' ? '参与学生' : '平均掌握度'} 
-              value={role === 'teacher' ? (data?.students?.length || 0) + ' 人' : (s.average || 0) + '%'} 
-              detail="较上周稳步提升" tone="blue"/>
-        <Stat icon={MessageCircle} label="问答次数" value={s.questions || 0} detail="智能体已记录" tone="violet"/>
-        <Stat icon={Database} label="知识资料" value={s.documents || 0} detail="已建立检索索引" tone="green"/>
-        <Stat icon={BookOpen} label="学习记录" value={s.activities || 0} detail="持续积累中" tone="orange"/>
+        <Stat icon={role === 'teacher' ? Users : ChartNoAxesCombined}
+          label={role === 'teacher' ? '参与学生' : '平均掌握度'}
+          value={role === 'teacher' ? (data?.students?.length || 0) + ' 人' : (s.average || 0) + '%'}
+          detail="较上周稳步提升" tone="blue" />
+        <Stat icon={MessageCircle} label="问答次数" value={s.questions || 0} detail="智能体已记录" tone="violet" />
+        <Stat icon={Database} label="知识资料" value={s.documents || 0} detail="已建立检索索引" tone="green" />
+        <Stat icon={BookOpen} label="学习记录" value={s.activities || 0} detail="持续积累中" tone="orange" />
       </div>
       <div className="dashboard-grid">
         <section className="panel chart-panel">
@@ -467,12 +466,12 @@ function Chat({user}){
       setPhotoLoading(false);
     }
   };
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div><div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside></div>
+  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside></div>
 }
 
 function Knowledge({ user }) {
   const isTeacher = user.role === 'teacher';
-  const [docs, setDocs] = useState([]), [selected, setSelected] = useState(null), [uploading, setUploading] = useState(false), [reindexing, setReindexing] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [uploadName, setUploadName] = useState(''), [msg, setMsg] = useState('');
+  const [docs, setDocs] = useState([]), [selected, setSelected] = useState(null), [uploading, setUploading] = useState(false), [reindexing, setReindexing] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [uploadName, setUploadName] = useState(''), [msg, setMsg] = useState(''), [searchTerm, setSearchTerm] = useState('');
   const [targetPage, setTargetPage] = useState('');
   const [targetTime, setTargetTime] = useState(null);
   const [activeCaption, setActiveCaption] = useState(-1);
@@ -507,6 +506,9 @@ function Knowledge({ user }) {
   const fileTypeClass = d => isVideo(d) ? 'video' : isAudio(d) ? 'audio' : ['PPT', 'PPTX'].includes(fileExt(d)) ? 'ppt' : ['DOC', 'DOCX'].includes(fileExt(d)) ? 'word' : fileExt(d) === 'PDF' ? 'pdf' : 'other';
   const jumpCaption = item => { const player = mediaRef.current; if (!player) return; player.currentTime = Math.max(0, item.start); player.play().catch(() => { }) };
   const captionPanel = captions.length > 0 && <div className="caption-panel"><div className="caption-head"><b>滚动字幕</b><span>{activeCaption >= 0 ? `${formatSourceTime(captions[activeCaption].start)} - ${formatSourceTime(captions[activeCaption].end)}` : '播放时自动定位'}</span></div><div className="caption-list" ref={captionListRef}>{captions.map((item, index) => <button type="button" data-caption-index={index} className={index === activeCaption ? 'active' : ''} key={`${item.start}-${index}`} onClick={() => jumpCaption(item)}><em>{formatSourceTime(item.start)}</em><span>{item.text}</span></button>)}</div></div>;
+  // 实时筛选：输入即变化
+  const filteredDocs = docs.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const clearSearch = () => setSearchTerm('');
   return <>
     <section className="knowledge-head">
       <div>
@@ -519,44 +521,62 @@ function Knowledge({ user }) {
         <label className="primary upload-btn"><Upload />{uploading ? '正在处理…' : '上传资料'}<input type="file" accept=".doc,.docx,.ppt,.pptx,.pdf,.mp3,.wav,.m4a,.aac,.flac,.ogg,.wma,.mp4,.mov,.avi,.mkv,.webm,.wmv,.flv" onChange={upload} disabled={uploading} /></label>
       </div>}
     </section>
-
-    {uploading && <div className="upload-progress"><div className="progress-file"><i><FileText /></i><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{ width: progress + '%' }} /></div></div>}
+    {uploading && <div className="upload-progress"><div className="progress-file"><i><FileText /></i><img src={UploadCloud} alt="上传中" className="upload-cloud-icon" /><span><b>{uploadName}</b><small>{stage}</small></span><strong>{progress}%</strong></div><div className="progress-track"><i style={{ width: progress + '%' }} /></div></div>}
     {msg && <div className="notice">{msg}</div>}
-
     <div className="kb-summary">
-      <div><Database /><span><b>{docs.length}</b><small>知识文档</small></span></div>
-      <div><FileText /><span><b>{docs.reduce((n, d) => n + d.chunks, 0)}</b><small>向量片段</small></span></div>
-      <div><Sparkles /><span><b>{docs.filter(d => d.preview_status === 'processing').length}</b><small>预览处理中</small></span></div>
+      <div><Database /><span><b>{filteredDocs.length}</b><small>知识文档</small></span></div>
+      <div><FileText /><span><b>{filteredDocs.reduce((n, d) => n + d.chunks, 0)}</b><small>向量片段</small></span></div>
+      <div><Sparkles /><span><b>{filteredDocs.filter(d => d.preview_status === 'processing').length}</b><small>预览处理中</small></span></div>
     </div>
-
+    <div className="knowledge-search">
+      <input
+        type="text"
+        placeholder="搜索资料名称..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="search-input"
+      />
+      <button className="search-btn" onClick={clearSearch} title="清空搜索">
+        {searchTerm ? <X size={18} /> : <Search size={18} />}
+      </button>
+    </div>
     <section className="panel table-panel">
       <div className="panel-head"><div><h3>{isTeacher ? '全部资料' : '教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频</p></div></div>
       <div className="doc-table">
         <div className="tr th"><span>资料名称</span><span>分类</span><span>片段</span><span>上传时间</span><span>预览</span></div>
-        {docs.map(d => <div className="tr" key={d.id}>
-          <span className="doc-name"><i><FileText /></i><b>{d.name}<small>{d.size} KB</small></b></span>
-          <span>
-            <em className={`tag file-type ${fileTypeClass(d)}`}>
-              {fileTypeLabel(d) === 'PDF' && <File size={12} style={{ marginRight: 4 }} />}
-              {['PPT', 'PPTX'].includes(fileExt(d)) && <File size={12} style={{ marginRight: 4 }} />}
-              {['DOC', 'DOCX'].includes(fileExt(d)) && <FileText size={12} style={{ marginRight: 4 }} />}
-              {fileTypeLabel(d) === '视频' && <Video size={12} style={{ marginRight: 4 }} />}
-              {fileTypeLabel(d) === '音频' && <Music size={12} style={{ marginRight: 4 }} />}
-              {!['PDF', 'PPT', 'PPTX', 'DOC', 'DOCX', '视频', '音频'].includes(fileTypeLabel(d)) && <File size={12} style={{ marginRight: 4 }} />}
-              {fileTypeLabel(d)}
-            </em>
-          </span>
-          <span>{d.chunks}</span>
-          <span>{d.created_at}</span>
-          <span className="doc-actions">
-            <button className={'view-doc preview-action ' + (d.preview_status || '')} onClick={() => view(d.id)} disabled={!canPreview(d)}>{canPreview(d) ? <Eye size={14} /> : <AlertCircle />}{previewText(d)}</button>
-            <button className="download-doc" onClick={() => download(d)} title="下载原始资料"><Upload />下载</button>
-            {isTeacher && <button className="trash" onClick={() => del(d.id)}><Trash2 /></button>}
-          </span>
-        </div>)}
+        {filteredDocs.length === 0 ? (
+          <div className="empty-state">
+            <img src={EmptyFolder} alt={searchTerm ? "未找到匹配资料" : "暂无资料"} className="empty-illustration" />
+            <h3>{searchTerm ? '未找到匹配资料' : '还没有资料'}</h3>
+            <p>{searchTerm ? `没有包含“${searchTerm}”的资料，试试其他关键词` : (isTeacher ? '点击右上角「上传资料」按钮添加课程资料' : '教师上传课程资料后，这里就会显示啦')}</p>
+          </div>
+        ) : (
+          filteredDocs.map(d => (
+            <div className="tr" key={d.id}>
+              <span className="doc-name"><i><FileText /></i><b>{d.name}<small>{d.size} KB</small></b></span>
+              <span>
+                <em className={`tag file-type ${fileTypeClass(d)}`}>
+                  {fileTypeLabel(d) === 'PDF' && <File size={10} style={{ marginRight: 2 }} />}
+                  {['PPT', 'PPTX'].includes(fileExt(d)) && <File size={10} style={{ marginRight: 2 }} />}
+                  {['DOC', 'DOCX'].includes(fileExt(d)) && <FileText size={10} style={{ marginRight: 2 }} />}
+                  {fileTypeLabel(d) === '视频' && <Video size={10} style={{ marginRight: 2 }} />}
+                  {fileTypeLabel(d) === '音频' && <Music size={10} style={{ marginRight: 2 }} />}
+                  {!['PDF', 'PPT', 'PPTX', 'DOC', 'DOCX', '视频', '音频'].includes(fileTypeLabel(d)) && <File size={10} style={{ marginRight: 2 }} />}
+                  {fileTypeLabel(d)}
+                </em>
+              </span>
+              <span>{d.chunks}</span>
+              <span>{d.created_at}</span>
+              <span className="doc-actions">
+                <button className={'view-doc preview-action ' + (d.preview_status || '')} onClick={() => view(d.id)} disabled={!canPreview(d)}>{canPreview(d) ? <Eye size={14} /> : <AlertCircle />}{previewText(d)}</button>
+                <button className="download-doc" onClick={() => download(d)} title="下载原始资料"><Upload />下载</button>
+                {isTeacher && <button className="trash" onClick={() => del(d.id)}><Trash2 /></button>}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </section>
-
     {selected && <section className="panel document-reader">
       <div className="reader-head"><div><span className="eyebrow"><FileText size={14} />{selected.type}</span><h2>{selected.name}</h2><p>{selected.created_at} · {selected.size} KB{targetPage ? ` · 已定位到第 ${targetPage} 页` : ''}{targetTime !== null && !Number.isNaN(targetTime) ? ` · 已定位到 ${formatSourceTime(targetTime)}` : ''}</p></div><button onClick={() => setSelected(null)}><X /></button></div>
       {selected.source_kind === 'media' && isVideo(selected)
@@ -676,85 +696,89 @@ const doSubmit = async () => {
   </div>
 )}</section>;return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>完成教师发布的习题，结果会自动进入学情分析和错题本。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className="done"><CheckCircle2/>已完成 {done.accuracy}%</span>}</div><button onClick={()=>open(exam)}>{done?'重新练习':'开始练习'}<ChevronRight/></button></article>})}</div></>}
 
-function StudentExams({user}) {
-  const [items,setItems]=useState([]);
-  const [subs,setSubs]=useState([]);
-  const [active,setActive]=useState(null);
-  const [answers,setAnswers]=useState({});
-  const [result,setResult]=useState(null);
-  const [showConfirm,setShowConfirm]=useState(false);
-  const [gradingMode,setGradingMode]=useState('ai');
-  const [submitting,setSubmitting]=useState(false);
-  const [error,setError]=useState('');
-  const load=()=>Promise.all([
-    request('/exams?published_only=true',{cache:false}),
-    request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`,{cache:false})
-  ]).then(([exams,submissions])=>{setItems(exams.items);setSubs(submissions.items)});
-  useEffect(()=>{load()},[]);
-  const submitted=id=>subs.find(item=>item.exam_id===id);
-  const open=exam=>{
-    const previous=submitted(exam.id);
+function StudentExams({ user }) {
+  const [items, setItems] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const [active, setActive] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [gradingMode, setGradingMode] = useState('ai');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const load = () => Promise.all([
+    request('/exams?published_only=true', { cache: false }),
+    request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`, { cache: false })
+  ]).then(([exams, submissions]) => { setItems(exams.items); setSubs(submissions.items) });
+  useEffect(() => { load() }, []);
+  const submitted = id => subs.find(item => item.exam_id === id);
+  const open = exam => {
+    const previous = submitted(exam.id);
     setActive(exam);
-    setAnswers(previous?Object.fromEntries(previous.details.map(detail=>[detail.id,detail.student_answer])):{});
-    setResult(previous||null);
+    setAnswers(previous ? Object.fromEntries(previous.details.map(detail => [detail.id, detail.student_answer])) : {});
+    setResult(previous || null);
     setError('');
   };
-  const startAgain=()=>{setAnswers({});setResult(null);setError('')};
-  const doSubmit=async()=>{
-    setSubmitting(true);setError('');
-    try{
-      const data=await post(`/exams/${active.id}/submit`,{
-        student:user.name,answers,solution_grading:gradingMode
+  const startAgain = () => { setAnswers({}); setResult(null); setError('') };
+  const doSubmit = async () => {
+    setSubmitting(true); setError('');
+    try {
+      const data = await post(`/exams/${active.id}/submit`, {
+        student: user.name, answers, solution_grading: gradingMode
       });
-      setResult(data);setShowConfirm(false);await load();
-    }catch(err){setError(err.message)}finally{setSubmitting(false)}
+      setResult(data); setShowConfirm(false); await load();
+    } catch (err) { setError(err.message) } finally { setSubmitting(false) }
   };
-  if(active){
-    const hasSolutions=active.questions.some(question=>question.type==='solution');
-    const pending=result?.status==='pending_teacher';
+  if (active) {
+    const hasSolutions = active.questions.some(question => question.type === 'solution');
+    const pending = result?.status === 'pending_teacher';
     return <section className="panel take-exam">
-      <button className="back-link" onClick={()=>setActive(null)}>← 返回练习中心</button>
-      <div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result&&<strong>{pending?'待教师批改':`${result.score}/${result.total}`}</strong>}</div>
-      {pending&&<div className="grading-status pending">解答题已发送到教师端。教师完成评分和评语后，这里会显示最终成绩。</div>}
-      {result?.status==='graded'&&result.overall_comment&&<div className="grading-status graded"><b>教师总评：</b>{result.overall_comment}</div>}
-      {active.questions.map((question,index)=>{
-        const detail=result?.details.find(item=>item.id===question.id);
-        const state=detail?.grading_status==='pending'?'pending':detail?(detail.correct?'correct':'wrong'):'';
+      <button className="back-link" onClick={() => setActive(null)}>← 返回练习中心</button>
+      <div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result && <strong>{pending ? '待教师批改' : `${result.score}/${result.total}`}</strong>}</div>
+      {pending && <div className="grading-status pending">解答题已发送到教师端。教师完成评分和评语后，这里会显示最终成绩。</div>}
+      {result?.status === 'graded' && result.overall_comment && <div className="grading-status graded"><b>教师总评：</b>{result.overall_comment}</div>}
+      {active.questions.map((question, index) => {
+        const detail = result?.details.find(item => item.id === question.id);
+        const state = detail?.grading_status === 'pending' ? 'pending' : detail ? (detail.correct ? 'correct' : 'wrong') : '';
         return <article className={`question ${state}`} key={question.id}>
-          <h3><span>{index+1}</span><em className="question-type">{questionTypeText(question.type)}</em>{question.question}</h3>
-          {question.options?.length>0?<div className="options">{question.options.map(option=>{const value=option.match(/^([A-Za-z])\./)?.[1]||option;return <label key={option}><input type="radio" name={question.id} disabled={!!result} checked={answers[question.id]===value} onChange={()=>setAnswers({...answers,[question.id]:value})}/><span>{option}</span></label>})}</div>:question.type==='fill'?<input className="fill-answer" disabled={!!result} value={answers[question.id]||''} onChange={event=>setAnswers({...answers,[question.id]:event.target.value})} placeholder="请输入答案"/>:<textarea disabled={!!result} value={answers[question.id]||''} onChange={event=>setAnswers({...answers,[question.id]:event.target.value})} placeholder="请写出解答过程和结论"/>}
-          {detail?.grading_status==='graded'&&<div className="answer-detail"><b>得分：{detail.score_awarded}/{detail.score}</b>{detail.feedback&&<p><b>评语：</b>{detail.feedback}</p>}{detail.correct===false&&detail.answer&&<p><b>参考答案：</b>{detail.answer}</p>}</div>}
-          {detail?.grading_status==='pending'&&<div className="answer-detail pending-detail">等待教师评分与评语</div>}
+          <h3><span>{index + 1}</span><em className="question-type">{questionTypeText(question.type)}</em>{question.question}</h3>
+          {question.options?.length > 0 ? <div className="options">{question.options.map(option => { const value = option.match(/^([A-Za-z])\./)?.[1] || option; return <label key={option}><input type="radio" name={question.id} disabled={!!result} checked={answers[question.id] === value} onChange={() => setAnswers({ ...answers, [question.id]: value })} /><span>{option}</span></label> })}</div> : question.type === 'fill' ? <input className="fill-answer" disabled={!!result} value={answers[question.id] || ''} onChange={event => setAnswers({ ...answers, [question.id]: event.target.value })} placeholder="请输入答案" /> : <textarea disabled={!!result} value={answers[question.id] || ''} onChange={event => setAnswers({ ...answers, [question.id]: event.target.value })} placeholder="请写出解答过程和结论" />}
+          {detail?.grading_status === 'graded' && <div className="answer-detail"><b>得分：{detail.score_awarded}/{detail.score}</b>{detail.feedback && <p><b>评语：</b>{detail.feedback}</p>}{detail.correct === false && detail.answer && <p><b>参考答案：</b>{detail.answer}</p>}</div>}
+          {detail?.grading_status === 'pending' && <div className="answer-detail pending-detail">等待教师评分与评语</div>}
         </article>
       })}
-      {error&&<div className="error">{error}</div>}
-      {!result?<button className="primary submit-exam" onClick={()=>setShowConfirm(true)}>提交练习</button>:<div className="submit-actions"><button className="secondary-btn" onClick={startAgain}>重新练习</button><button className="primary" onClick={()=>{load();setActive(null)}}>完成并返回</button></div>}
-      {showConfirm&&<div className="modal-overlay" onClick={()=>!submitting&&setShowConfirm(false)}><div className="modal-box grading-choice" onClick={event=>event.stopPropagation()}><h3>确认提交本次练习</h3>{hasSolutions&&<><p>本试卷包含解答题，请选择批改方式：</p><label className={gradingMode==='ai'?'selected':''}><input type="radio" checked={gradingMode==='ai'} onChange={()=>setGradingMode('ai')}/><span><b>AI 批改</b><small>提交后由 DeepSeek 按参考答案即时评分并给出评语</small></span></label><label className={gradingMode==='teacher'?'selected':''}><input type="radio" checked={gradingMode==='teacher'} onChange={()=>setGradingMode('teacher')}/><span><b>教师批改</b><small>提交到教师端，等待教师评分并填写评语</small></span></label></>}<div className="modal-actions"><button className="secondary-btn" disabled={submitting} onClick={()=>setShowConfirm(false)}>取消</button><button className="primary" disabled={submitting} onClick={doSubmit}>{submitting?'正在提交…':'确认提交'}</button></div></div></div>}
+      {error && <div className="error">{error}</div>}
+      {!result ? <button className="primary submit-exam" onClick={() => setShowConfirm(true)}>提交练习</button> : <div className="submit-actions"><button className="secondary-btn" onClick={startAgain}>重新练习</button><button className="primary" onClick={() => { load(); setActive(null) }}>完成并返回</button></div>}
+      {showConfirm && <div className="modal-overlay" onClick={() => !submitting && setShowConfirm(false)}><div className="modal-box grading-choice" onClick={event => event.stopPropagation()}><h3>确认提交本次练习</h3>{hasSolutions && <><p>本试卷包含解答题，请选择批改方式：</p><label className={gradingMode === 'ai' ? 'selected' : ''}><input type="radio" checked={gradingMode === 'ai'} onChange={() => setGradingMode('ai')} /><span><b>AI 批改</b><small>提交后由 DeepSeek 按参考答案即时评分并给出评语</small></span></label><label className={gradingMode === 'teacher' ? 'selected' : ''}><input type="radio" checked={gradingMode === 'teacher'} onChange={() => setGradingMode('teacher')} /><span><b>教师批改</b><small>提交到教师端，等待教师评分并填写评语</small></span></label></>}<div className="modal-actions"><button className="secondary-btn" disabled={submitting} onClick={() => setShowConfirm(false)}>取消</button><button className="primary" disabled={submitting} onClick={doSubmit}>{submitting ? '正在提交…' : '确认提交'}</button></div></div></div>}
     </section>
   }
-  return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>解答题可选择 AI 即时批改，也可提交教师评分并获得评语。</p></div></section>
-  {/* 顶部统计卡片 */}
-<div className="exam-stats">
-  <div className="exam-stat">
-    <span className="exam-stat-number">{items.length}</span>
-    <span className="exam-stat-label">总习题</span>
-  </div>
-  <div className="exam-stat">
-    <span className="exam-stat-number">{subs.length}</span>
-    <span className="exam-stat-label">已完成</span>
-  </div>
-  <div className="exam-stat">
-    <span className="exam-stat-number">
-      {items.length > 0 ? Math.round((subs.length / items.length) * 100) : 0}%
-    </span>
-    <span className="exam-stat-label">完成率</span>
-  </div>
-  <div className="exam-stat">
-    <span className="exam-stat-number">{items.length - subs.length}</span>
-    <span className="exam-stat-label">待练习</span>
-  </div>
-</div>
-  <div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className={`done ${done.status==='pending_teacher'?'pending':''}`}><CheckCircle2/>{done.status==='pending_teacher'?'待教师批改':`已完成 ${done.accuracy}%`}</span>}</div><button onClick={()=>open(exam)}>{done?'查看结果':'开始练习'}<ChevronRight/></button></article>})}</div></>
+  return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15} />课程练习</span><h1>练习中心</h1><p>解答题可选择 AI 即时批改，也可提交教师评分并获得评语。</p></div></section>
+    {/* 顶部统计卡片 */}
+    <div className="exam-stats">
+      <div className="exam-stat">
+        <span className="exam-stat-number">{items.length}</span>
+        <span className="exam-stat-label">总习题</span>
+      </div>
+      <div className="exam-stat">
+        <span className="exam-stat-number">{subs.length}</span>
+        <span className="exam-stat-label">已完成</span>
+      </div>
+      <div className="exam-stat">
+        <span className="exam-stat-number">
+          {items.length > 0 ? Math.round((subs.length / items.length) * 100) : 0}%
+        </span>
+        <span className="exam-stat-label">完成率</span>
+      </div>
+      <div className="exam-stat">
+        <span className="exam-stat-number">{items.length - subs.length}</span>
+        <span className="exam-stat-label">待练习</span>
+      </div>
+    </div>
+    <div className="exercise-grid">{items.length === 0 ? <div className="empty-state">
+      <img src={EmptyQuestions} alt="暂无习题" className="empty-illustration" />
+      <h3>还没有习题</h3>
+      <p>教师发布习题后，这里就会显示啦</p>
+    </div> : items.map(exam => { const done = submitted(exam.id); return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList /></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done && <span className={`done ${done.status === 'pending_teacher' ? 'pending' : ''}`}><CheckCircle2 />{done.status === 'pending_teacher' ? '待教师批改' : `已完成 ${done.accuracy}%`}</span>}</div><button onClick={() => open(exam)}>{done ? '查看结果' : '开始练习'}<ChevronRight /></button></article> })}</div></>
 }
 
 function TeacherGrading(){
@@ -907,9 +931,10 @@ function Wrongbook({user}) {
         {loading ? (
           <div className="panel empty">加载中...</div>
         ) : filteredItems.length === 0 ? (
-          <div className="panel empty">
-            {filter ? <CheckCircle2/> : <CheckCircle2/>}
-            {filter ? '该知识点暂无错题，继续保持！' : '暂无错题，继续保持！'}
+          <div className="empty-state">
+            <img src={EmptyCelebration} alt="暂无错题" className="empty-illustration" />
+            <h3>{filter ? '该知识点暂无错题' : '暂无错题'}</h3>
+            <p>{filter ? '换个知识点看看吧！' : '继续保持，再接再厉！'}</p>
           </div>
         ) : (
           filteredItems.map((q, i) => (
@@ -918,10 +943,10 @@ function Wrongbook({user}) {
                 <span>{q.exam_title}</span>
                 <em>{q.knowledge_point}</em>
               </div>
-              <h3>{i+1}. {q.question}</h3>
+              <h3>{i + 1}. {q.question}</h3>
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
               <p className="right-answer">正确答案：{q.answer}</p>
-              <div className="explanation"><Sparkles/> {q.analysis}</div>
+              <div className="explanation"><Sparkles /> {q.analysis}</div>
             </article>
           ))
         )}
@@ -932,4 +957,3 @@ function Wrongbook({user}) {
 
 function App(){const isLoginPage=location.pathname==='/login';const [user,setUser]=useState(()=>{if(isLoginPage)return null;try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user&&!isLoginPage?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
 createRoot(document.getElementById('root')).render(<App/>);
-
