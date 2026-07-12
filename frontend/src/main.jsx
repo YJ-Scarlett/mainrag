@@ -815,12 +815,12 @@ function TeacherGrading(){
 
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
 
-function Wrongbook({user}) {
+function Wrongbook({ user }) {
   const [items, setItems] = useState([]);
   const [mastery, setMastery] = useState([]);
-  const [filter, setFilter] = useState(() => {
+  const [filters, setFilters] = useState(() => {
     const params = new URLSearchParams(location.search);
-    return params.get('knowledge') || '';
+    return params.getAll('knowledge');
   });
   const [loading, setLoading] = useState(true);
 
@@ -833,7 +833,7 @@ function Wrongbook({user}) {
     ]).then(([wrongRes, analysisRes]) => {
       setItems(wrongRes.items || []);
       setMastery(analysisRes.mastery || []);
-    }).catch(() => {})
+    }).catch(() => { })
       .finally(() => setLoading(false));
   };
 
@@ -845,34 +845,100 @@ function Wrongbook({user}) {
   useEffect(() => {
     const onPop = () => {
       const params = new URLSearchParams(location.search);
-      setFilter(params.get('knowledge') || '');
+      setFilters(params.getAll('knowledge'));
     };
+
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+
+    return () => {
+      window.removeEventListener('popstate', onPop);
+    };
   }, []);
 
   // 点击标签：更新 URL 并设置 filter
   const handleTagClick = (topic) => {
-    const url = topic
-      ? `/student/wrongbook?knowledge=${encodeURIComponent(topic)}`
-      : '/student/wrongbook';
-    history.pushState(null, '', url);
-    setFilter(topic || '');
+    setFilters(previous => {
+      // 点击“清除筛选”
+      if (!topic) {
+        history.pushState(null, '', '/student/wrongbook');
+        return [];
+      }
+
+      // 已选择则取消，未选择则添加
+      const next = previous.includes(topic)
+        ? previous.filter(item => item !== topic)
+        : [...previous, topic];
+
+      // 把多个知识点写入 URL
+      const params = new URLSearchParams();
+      next.forEach(item => params.append('knowledge', item));
+
+      const query = params.toString();
+      const url = query
+        ? `/student/wrongbook?${query}`
+        : '/student/wrongbook';
+
+      history.pushState(null, '', url);
+      return next;
+    });
   };
 
-  // 过滤错题
-  const filteredItems = filter
-    ? items.filter(q => q.knowledge_point === filter)
+  // 过滤错题：未选择时显示全部，选择多个时显示任一知识点对应的错题
+  const getQuestionKnowledgePoints = (question) => {
+    if (Array.isArray(question.knowledge_points)) {
+      return question.knowledge_points;
+    }
+
+    // 兼容旧错题
+    if (question.knowledge_point) {
+      return [question.knowledge_point];
+    }
+
+    return [];
+  };
+
+  const filteredItems = filters.length > 0
+    ? items.filter(question => {
+      const questionPoints = getQuestionKnowledgePoints(question);
+
+      // 只要题目包含任意一个已选知识点，就显示
+      return filters.some(filterPoint =>
+        questionPoints.includes(filterPoint)
+      );
+    })
     : items;
 
-  // 计算当前筛选知识点的掌握度
-  const currentMastery = mastery.find(m => m.topic === filter);
+  const knowledgePointTags = useMemo(() => {
+    const topicMap = new Map();
+
+    // 先加入掌握度中的知识点
+    mastery.forEach(item => {
+      topicMap.set(item.topic, {
+        topic: item.topic,
+        score: item.score,
+      });
+    });
+
+    // 再加入错题中的全部知识点
+    items.forEach(question => {
+      getQuestionKnowledgePoints(question).forEach(point => {
+        if (!topicMap.has(point)) {
+          topicMap.set(point, {
+            topic: point,
+            score: null,
+          });
+        }
+      });
+    });
+
+    return Array.from(topicMap.values());
+  }, [mastery, items]);
 
   return (
     <>
       <section className="analysis-title">
         <div>
-          <span className="eyebrow"><AlertCircle size={15}/>查漏补缺</span>
+          <span className="eyebrow"><AlertCircle size={15} />查漏补缺</span>
           <h1>我的错题本</h1>
           <p>自动收集练习中的错题，结合解析进行针对性复习。</p>
         </div>
@@ -882,25 +948,27 @@ function Wrongbook({user}) {
       {mastery.length > 0 && (
         <div className="mastery-tags" style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
           <span style={{ fontWeight: 'bold', marginRight: '10px' }}>知识点掌握度：</span>
-          {mastery.map(m => (
+          {knowledgePointTags.map(m => (
             <span
               key={m.topic}
               onClick={() => handleTagClick(m.topic)}
               style={{
                 padding: '4px 14px',
                 borderRadius: '20px',
-                background: filter === m.topic ? '#5577ee' : '#eef1f7',
-                color: filter === m.topic ? '#fff' : '#333',
+                background: filters.includes(m.topic) ? '#5577ee' : '#eef1f7',
+                color: filters.includes(m.topic) ? '#fff' : '#333',
                 cursor: 'pointer',
                 fontSize: '14px',
                 transition: '0.2s',
-                border: filter === m.topic ? '1px solid #5577ee' : '1px solid transparent',
+                border: filters.includes(m.topic)
+                  ? '1px solid #5577ee'
+                  : '1px solid transparent',
               }}
             >
-              {m.topic} {m.score}%
+              {m.topic}{m.score !== null ? ` ${m.score}%` : ''}
             </span>
           ))}
-          {filter && (
+          {filters.length > 0 && (
             <button
               onClick={() => handleTagClick('')}
               style={{
@@ -919,13 +987,8 @@ function Wrongbook({user}) {
       )}
 
       {/* 筛选提示 */}
-      {filter && (
-        <div style={{ marginBottom: '16px', color: '#5577ee' }}>
-          当前筛选：<strong>{filter}</strong>
-          {currentMastery && `（掌握度 ${currentMastery.score}%）`}
-          {filteredItems.length === 0 && '，暂无相关错题'}
-        </div>
-      )}
+      {/* 筛选提示 */}
+
 
       <div className="wrong-list">
         {loading ? (
@@ -933,15 +996,25 @@ function Wrongbook({user}) {
         ) : filteredItems.length === 0 ? (
           <div className="empty-state">
             <img src={EmptyCelebration} alt="暂无错题" className="empty-illustration" />
-            <h3>{filter ? '该知识点暂无错题' : '暂无错题'}</h3>
-            <p>{filter ? '换个知识点看看吧！' : '继续保持，再接再厉！'}</p>
+            <h3>{filters.length > 0 ? '该知识点暂无错题' : '暂无错题'}</h3>
+            <p>{filters.length > 0 ? '换个知识点看看吧！' : '继续保持，再接再厉！'}</p>
           </div>
         ) : (
           filteredItems.map((q, i) => (
             <article className="panel wrong-item" key={q.exam_id + q.id}>
               <div className="wrong-meta">
                 <span>{q.exam_title}</span>
-                <em>{q.knowledge_point}</em>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {getQuestionKnowledgePoints(q).map(point => (
+                    <em key={point}>{point}</em>
+                  ))}
+                </div>
               </div>
               <h3>{i + 1}. {q.question}</h3>
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
