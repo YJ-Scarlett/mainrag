@@ -1,6 +1,20 @@
 {
   "documents": [
     {
+      "id": "b68208fa7a",
+      "name": "二叉树",
+      "type": "课程资料",
+      "size": 20.5,
+      "created_at": "2026-07-12 09:17",
+      "content": "二叉树是一种特殊的树形数据结构，其中每个节点最多有两个子节点，分别称为左子节点和右子节点。当二叉树中只有一个节点时，它仍然符合二叉树的定义。\n特点与性质\n单节点二叉树的定义：当二叉树中只有一个节点时，该节点既是根节点，也是唯一的叶子节点。此时，二叉树的深度为1，节点总数为1。\n性质： 第1层最多有 (2^{1-1} = 1) 个节点。 深度为1的二叉树最多有 (2^1 - 1 = 1) 个节点。 叶子节点数 (n_0 = 1)，度为2的节点数 (n_2 = 0)，满足性质 (n_0 = n_2 + 1)。\n特殊性：单节点二叉树没有左子树或右子树，因此它是最简单的二叉树形式。\n示例代码\n以下是一个简单的 Python 示例，展示如何定义和操作只有一个节点的二叉树：\nclass TreeNode:\ndef __init__(self, value):\nself.value = value\nself.left = None\nself.right = None\n# 创建一个只有一个节点的二叉树\nroot = TreeNode(10)\n# 打印根节点的值\nprint(\"根节点的值:\", root.value)\n# 检查左右子节点\nprint(\"左子节点:\", root.left)\nprint(\"右子节点:\", root.right)\n应用场景\n基础结构：单节点二叉树是构建复杂二叉树的基础，常用于递归算法的终止条件。\n特殊情况：在某些算法中，单节点二叉树可以作为边界条件进行处理。\n注意事项\n单节点二叉树虽然简单，但在实际应用中仍需注意其边界条件。例如，在遍历或操作时，需确保代码能够正确处理没有子节点的情况。",
+      "extension": "DOC",
+      "stored_path": "da313c88b8974502a82c1aa4b4e0647b.doc",
+      "preview_path": "da313c88b8974502a82c1aa4b4e0647b-preview.pdf",
+      "preview_status": "ready",
+      "preview_error": "",
+      "source_kind": "document"
+    },
+    {
       "id": "dd71df4eca",
       "name": "db_2025fall_c01",
       "type": "课程资料",
@@ -72,19 +86,19 @@
   ],
   "activities": [
     {
-      "student": "张同学",
+      "student": "student",
       "topic": "TCP可靠传输",
       "score": 72,
       "at": "2026-07-01"
     },
     {
-      "student": "张同学",
+      "student": "student",
       "topic": "HTTP状态码",
       "score": 86,
       "at": "2026-07-02"
     },
     {
-      "student": "张同学",
+      "student": "student",
       "topic": "数据库事务",
       "score": 78,
       "at": "2026-07-03"
@@ -104,79 +118,188 @@
   ],
   "questions": [
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "TCP 如何保证可靠传输？",
       "topic": "计算机网络基础",
       "at": "2026-07-06T15:27:56"
     },
     {
-      "student": "张同学",
+      "student": "student",
       "question": "编译有哪些阶段，每个阶段的输入输出分别是什么",
       "topic": "1",
       "at": "2026-07-06T15:54:04"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "编译有哪些阶段，每个阶段的输入输出是什么",
       "topic": "2-1",
       "at": "2026-07-06T16:26:59"
     },
     {
-      "student": "张同学",
+      "student": "student",
       "question": "TCP 如何保证可靠传输？",
       "topic": "计算机网络基础",
       "at": "2026-07-08T13:56:26"
     },
     {
-      "student": "张同学",
+      "student": "student",
       "question": "TCP 如何保证可靠传输？",
       "topic": "计算机网络基础",
       "at": "2026-07-08T13:57:46"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "什么是死锁，死锁有哪几种",
       "topic": "Chapter3：处理机调度与死锁_恢复",
       "at": "2026-07-08T14:16:44"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "怎么处理死锁",
       "topic": "Chapter3：处理机调度与死锁_恢复",
       "at": "2026-07-08T14:17:12"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "死锁怎么解决",
       "topic": "Chapter3：处理机调度与死锁_恢复",
       "at": "2026-07-08T14:33:25"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "编译有哪些阶段",
       "topic": "1",
       "at": "2026-07-08T14:33:37"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "什么是进程",
       "topic": "Chapter2：进程的描述与控制",
       "at": "2026-07-08T16:23:41"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "什么是ip",
       "topic": "Chapter_4_V7.01-FJT",
       "at": "2026-07-08T16:53:50"
     },
     {
-      "student": "陈老师",
+      "student": "teacher",
       "question": "有哪些数据库模型",
       "topic": "db_2025fall_c01",
       "at": "2026-07-08T19:16:03"
+    },
+    {
+      "student": "student",
+      "question": "进程描述",
+      "topic": "Chapter2：进程的描述与控制",
+      "at": "2026-07-11T16:09:25"
     }
   ],
   "exams": [
+    {
+      "id": "f98a52bff9",
+      "title": "二叉树 · 全文练习",
+      "document_id": "b68208fa7a",
+      "document_name": "二叉树",
+      "chapter": "全文",
+      "difficulty": "困难",
+      "status": "published",
+      "created_at": "2026-07-12 09:37",
+      "questions": [
+        {
+          "id": "73b70f7ae6",
+          "type": "choice",
+          "question": "根据二叉树的性质，在单节点二叉树中，叶子节点数 n₀ 与度为 2 的节点数 n₂ 的关系是？",
+          "options": [
+            "A. n₀ = n₂ + 1",
+            "B. n₀ = n₂",
+            "C. n₀ = n₂ - 1",
+            "D. n₀ = 2n₂"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "knowledge_points": [
+            "二叉树叶子节点与度为2节点的关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树叶子节点与度为2节点的关系",
+          "score": 10
+        },
+        {
+          "id": "7345b33cd5",
+          "type": "choice",
+          "question": "在单节点二叉树中，若根节点值为 10，则以下关于其左右子节点的描述正确的是？",
+          "options": [
+            "A. 左子节点和右子节点均为 None",
+            "B. 左子节点为 None，右子节点为 10",
+            "C. 左子节点为 10，右子节点为 None",
+            "D. 左子节点和右子节点均为 10"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "knowledge_points": [
+            "单节点二叉树定义",
+            "二叉树节点结构"
+          ],
+          "knowledge_point": "单节点二叉树定义",
+          "score": 10
+        },
+        {
+          "id": "e9944715d7",
+          "type": "fill",
+          "question": "深度为 1 的二叉树最多有 ____ 个节点。",
+          "options": [],
+          "answer": "1",
+          "analysis": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "knowledge_points": [
+            "二叉树深度与节点数关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树深度与节点数关系",
+          "score": 10
+        },
+        {
+          "id": "ece6a8e009",
+          "type": "choice",
+          "question": "以下哪个场景最适合将单节点二叉树作为边界条件处理？",
+          "options": [
+            "A. 在二叉树的层序遍历中处理空树",
+            "B. 在递归计算二叉树高度时作为终止条件",
+            "C. 在二叉搜索树中插入新节点",
+            "D. 在哈夫曼树中合并两个节点"
+          ],
+          "answer": "B",
+          "analysis": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "knowledge_points": [
+            "单节点二叉树应用场景",
+            "递归终止条件"
+          ],
+          "knowledge_point": "单节点二叉树应用场景",
+          "score": 10
+        },
+        {
+          "id": "d9851539b3",
+          "type": "choice",
+          "question": "在 Python 中定义 TreeNode 类后，创建一个单节点二叉树的正确代码是？",
+          "options": [
+            "A. root = TreeNode(10); root.left = TreeNode(5)",
+            "B. root = TreeNode(10); root.right = TreeNode(15)",
+            "C. root = TreeNode(10)",
+            "D. root = TreeNode(); root.value = 10"
+          ],
+          "answer": "C",
+          "analysis": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "knowledge_points": [
+            "单节点二叉树创建",
+            "Python二叉树节点实现"
+          ],
+          "knowledge_point": "单节点二叉树创建",
+          "score": 10
+        }
+      ],
+      "published_at": "2026-07-12 09:37"
+    },
     {
       "id": "0a1cbec9e2",
       "title": "1 · 全文练习",
@@ -268,10 +391,551 @@
   ],
   "submissions": [
     {
+      "id": "cdda359ee2",
+      "exam_id": "f98a52bff9",
+      "exam_title": "二叉树 · 全文练习",
+      "student": "s_student1",
+      "score": 50,
+      "total": 50,
+      "accuracy": 100,
+      "status": "graded",
+      "solution_grading": "ai",
+      "submitted_at": "2026-07-12 15:27",
+      "details": [
+        {
+          "id": "73b70f7ae6",
+          "type": "choice",
+          "question": "根据二叉树的性质，在单节点二叉树中，叶子节点数 n₀ 与度为 2 的节点数 n₂ 的关系是？",
+          "options": [
+            "A. n₀ = n₂ + 1",
+            "B. n₀ = n₂",
+            "C. n₀ = n₂ - 1",
+            "D. n₀ = 2n₂"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "knowledge_points": [
+            "二叉树叶子节点与度为2节点的关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树叶子节点与度为2节点的关系",
+          "score": 10,
+          "student_answer": "A",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "7345b33cd5",
+          "type": "choice",
+          "question": "在单节点二叉树中，若根节点值为 10，则以下关于其左右子节点的描述正确的是？",
+          "options": [
+            "A. 左子节点和右子节点均为 None",
+            "B. 左子节点为 None，右子节点为 10",
+            "C. 左子节点为 10，右子节点为 None",
+            "D. 左子节点和右子节点均为 10"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "knowledge_points": [
+            "单节点二叉树定义",
+            "二叉树节点结构"
+          ],
+          "knowledge_point": "单节点二叉树定义",
+          "score": 10,
+          "student_answer": "A",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "e9944715d7",
+          "type": "fill",
+          "question": "深度为 1 的二叉树最多有 ____ 个节点。",
+          "options": [],
+          "answer": "1",
+          "analysis": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "knowledge_points": [
+            "二叉树深度与节点数关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树深度与节点数关系",
+          "score": 10,
+          "student_answer": "1",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "ece6a8e009",
+          "type": "choice",
+          "question": "以下哪个场景最适合将单节点二叉树作为边界条件处理？",
+          "options": [
+            "A. 在二叉树的层序遍历中处理空树",
+            "B. 在递归计算二叉树高度时作为终止条件",
+            "C. 在二叉搜索树中插入新节点",
+            "D. 在哈夫曼树中合并两个节点"
+          ],
+          "answer": "B",
+          "analysis": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "knowledge_points": [
+            "单节点二叉树应用场景",
+            "递归终止条件"
+          ],
+          "knowledge_point": "单节点二叉树应用场景",
+          "score": 10,
+          "student_answer": "B",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "d9851539b3",
+          "type": "choice",
+          "question": "在 Python 中定义 TreeNode 类后，创建一个单节点二叉树的正确代码是？",
+          "options": [
+            "A. root = TreeNode(10); root.left = TreeNode(5)",
+            "B. root = TreeNode(10); root.right = TreeNode(15)",
+            "C. root = TreeNode(10)",
+            "D. root = TreeNode(); root.value = 10"
+          ],
+          "answer": "C",
+          "analysis": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "knowledge_points": [
+            "单节点二叉树创建",
+            "Python二叉树节点实现"
+          ],
+          "knowledge_point": "单节点二叉树创建",
+          "score": 10,
+          "student_answer": "C",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        }
+      ]
+    },
+    {
+      "id": "8f2e5e8e54",
+      "exam_id": "f98a52bff9",
+      "exam_title": "二叉树 · 全文练习",
+      "student": "张同学",
+      "score": 20,
+      "total": 50,
+      "accuracy": 40,
+      "status": "graded",
+      "solution_grading": "ai",
+      "submitted_at": "2026-07-12 14:54",
+      "details": [
+        {
+          "id": "73b70f7ae6",
+          "type": "choice",
+          "question": "根据二叉树的性质，在单节点二叉树中，叶子节点数 n₀ 与度为 2 的节点数 n₂ 的关系是？",
+          "options": [
+            "A. n₀ = n₂ + 1",
+            "B. n₀ = n₂",
+            "C. n₀ = n₂ - 1",
+            "D. n₀ = 2n₂"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "knowledge_points": [
+            "二叉树叶子节点与度为2节点的关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树叶子节点与度为2节点的关系",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "7345b33cd5",
+          "type": "choice",
+          "question": "在单节点二叉树中，若根节点值为 10，则以下关于其左右子节点的描述正确的是？",
+          "options": [
+            "A. 左子节点和右子节点均为 None",
+            "B. 左子节点为 None，右子节点为 10",
+            "C. 左子节点为 10，右子节点为 None",
+            "D. 左子节点和右子节点均为 10"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "knowledge_points": [
+            "单节点二叉树定义",
+            "二叉树节点结构"
+          ],
+          "knowledge_point": "单节点二叉树定义",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "e9944715d7",
+          "type": "fill",
+          "question": "深度为 1 的二叉树最多有 ____ 个节点。",
+          "options": [],
+          "answer": "1",
+          "analysis": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "knowledge_points": [
+            "二叉树深度与节点数关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树深度与节点数关系",
+          "score": 10,
+          "student_answer": "1",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "ece6a8e009",
+          "type": "choice",
+          "question": "以下哪个场景最适合将单节点二叉树作为边界条件处理？",
+          "options": [
+            "A. 在二叉树的层序遍历中处理空树",
+            "B. 在递归计算二叉树高度时作为终止条件",
+            "C. 在二叉搜索树中插入新节点",
+            "D. 在哈夫曼树中合并两个节点"
+          ],
+          "answer": "B",
+          "analysis": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "knowledge_points": [
+            "单节点二叉树应用场景",
+            "递归终止条件"
+          ],
+          "knowledge_point": "单节点二叉树应用场景",
+          "score": 10,
+          "student_answer": "B",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "d9851539b3",
+          "type": "choice",
+          "question": "在 Python 中定义 TreeNode 类后，创建一个单节点二叉树的正确代码是？",
+          "options": [
+            "A. root = TreeNode(10); root.left = TreeNode(5)",
+            "B. root = TreeNode(10); root.right = TreeNode(15)",
+            "C. root = TreeNode(10)",
+            "D. root = TreeNode(); root.value = 10"
+          ],
+          "answer": "C",
+          "analysis": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "knowledge_points": [
+            "单节点二叉树创建",
+            "Python二叉树节点实现"
+          ],
+          "knowledge_point": "单节点二叉树创建",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        }
+      ]
+    },
+    {
+      "id": "4daa41b44d",
+      "exam_id": "f98a52bff9",
+      "exam_title": "二叉树 · 全文练习",
+      "student": "student",
+      "score": 20,
+      "total": 50,
+      "accuracy": 40,
+      "status": "graded",
+      "solution_grading": "ai",
+      "submitted_at": "2026-07-12 14:10",
+      "details": [
+        {
+          "id": "73b70f7ae6",
+          "type": "choice",
+          "question": "根据二叉树的性质，在单节点二叉树中，叶子节点数 n₀ 与度为 2 的节点数 n₂ 的关系是？",
+          "options": [
+            "A. n₀ = n₂ + 1",
+            "B. n₀ = n₂",
+            "C. n₀ = n₂ - 1",
+            "D. n₀ = 2n₂"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "knowledge_points": [
+            "二叉树叶子节点与度为2节点的关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树叶子节点与度为2节点的关系",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树中，叶子节点数 n₀ = 1，度为 2 的节点数 n₂ = 0，代入 n₀ = n₂ + 1 成立。这是二叉树的一个重要性质，在单节点情况下依然成立。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "7345b33cd5",
+          "type": "choice",
+          "question": "在单节点二叉树中，若根节点值为 10，则以下关于其左右子节点的描述正确的是？",
+          "options": [
+            "A. 左子节点和右子节点均为 None",
+            "B. 左子节点为 None，右子节点为 10",
+            "C. 左子节点为 10，右子节点为 None",
+            "D. 左子节点和右子节点均为 10"
+          ],
+          "answer": "A",
+          "analysis": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "knowledge_points": [
+            "单节点二叉树定义",
+            "二叉树节点结构"
+          ],
+          "knowledge_point": "单节点二叉树定义",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树没有左子树或右子树，因此根节点的 left 和 right 属性均为 None。示例代码中 root.left 和 root.right 输出 None 可验证。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "e9944715d7",
+          "type": "fill",
+          "question": "深度为 1 的二叉树最多有 ____ 个节点。",
+          "options": [],
+          "answer": "1",
+          "analysis": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "knowledge_points": [
+            "二叉树深度与节点数关系",
+            "单节点二叉树性质"
+          ],
+          "knowledge_point": "二叉树深度与节点数关系",
+          "score": 10,
+          "student_answer": "1",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "根据二叉树性质，深度为 k 的二叉树最多有 2^k - 1 个节点。当 k=1 时，最多有 2^1 - 1 = 1 个节点，这正是单节点二叉树的情况。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "ece6a8e009",
+          "type": "choice",
+          "question": "以下哪个场景最适合将单节点二叉树作为边界条件处理？",
+          "options": [
+            "A. 在二叉树的层序遍历中处理空树",
+            "B. 在递归计算二叉树高度时作为终止条件",
+            "C. 在二叉搜索树中插入新节点",
+            "D. 在哈夫曼树中合并两个节点"
+          ],
+          "answer": "B",
+          "analysis": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "knowledge_points": [
+            "单节点二叉树应用场景",
+            "递归终止条件"
+          ],
+          "knowledge_point": "单节点二叉树应用场景",
+          "score": 10,
+          "student_answer": "B",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "单节点二叉树是递归算法的典型终止条件。例如在计算二叉树高度时，递归到单节点（无子节点）时返回深度 1，这正是边界条件的体现。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "d9851539b3",
+          "type": "choice",
+          "question": "在 Python 中定义 TreeNode 类后，创建一个单节点二叉树的正确代码是？",
+          "options": [
+            "A. root = TreeNode(10); root.left = TreeNode(5)",
+            "B. root = TreeNode(10); root.right = TreeNode(15)",
+            "C. root = TreeNode(10)",
+            "D. root = TreeNode(); root.value = 10"
+          ],
+          "answer": "C",
+          "analysis": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "knowledge_points": [
+            "单节点二叉树创建",
+            "Python二叉树节点实现"
+          ],
+          "knowledge_point": "单节点二叉树创建",
+          "score": 10,
+          "student_answer": "B",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "单节点二叉树仅包含一个根节点，且左右子节点默认为 None。选项 C 直接创建值为 10 的节点即满足定义。选项 A 和 B 创建了子节点，不再是单节点二叉树。选项 D 语法错误，TreeNode 初始化需要传入 value 参数。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        }
+      ]
+    },
+    {
+      "id": "caa9e8bcb0",
+      "exam_id": "f04535401a",
+      "exam_title": "二叉树 · 全文练习",
+      "student": "student",
+      "score": 30,
+      "total": 50,
+      "accuracy": 60,
+      "status": "graded",
+      "solution_grading": "ai",
+      "submitted_at": "2026-07-12 09:33",
+      "details": [
+        {
+          "id": "708165e591",
+          "type": "choice",
+          "question": "根据二叉树的定义，以下关于单节点二叉树的描述中，正确的是？",
+          "options": [
+            "A. 单节点二叉树中，根节点没有子节点，因此它不符合二叉树的定义",
+            "B. 单节点二叉树的深度为0",
+            "C. 单节点二叉树中，该节点既是根节点也是唯一的叶子节点",
+            "D. 单节点二叉树中，左子节点和右子节点均为空，因此它不属于二叉树"
+          ],
+          "answer": "C",
+          "analysis": "根据资料，当二叉树中只有一个节点时，该节点既是根节点，也是唯一的叶子节点。选项A和D错误，因为单节点二叉树符合定义；选项B错误，因为单节点二叉树的深度为1。",
+          "knowledge_points": [
+            "单节点二叉树的定义",
+            "二叉树的深度"
+          ],
+          "knowledge_point": "单节点二叉树的定义",
+          "score": 10,
+          "student_answer": "C",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "根据资料，当二叉树中只有一个节点时，该节点既是根节点，也是唯一的叶子节点。选项A和D错误，因为单节点二叉树符合定义；选项B错误，因为单节点二叉树的深度为1。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "836d3d54e7",
+          "type": "choice",
+          "question": "对于一棵深度为1的二叉树，其最多拥有的节点总数是？",
+          "options": [
+            "A. 0",
+            "B. 1",
+            "C. 2",
+            "D. 3"
+          ],
+          "answer": "B",
+          "analysis": "根据二叉树性质，深度为1的二叉树最多有 (2^1 - 1 = 1) 个节点，即单节点二叉树。",
+          "knowledge_points": [
+            "二叉树的性质",
+            "二叉树的最大节点数"
+          ],
+          "knowledge_point": "二叉树的性质",
+          "score": 10,
+          "student_answer": "A",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "根据二叉树性质，深度为1的二叉树最多有 (2^1 - 1 = 1) 个节点，即单节点二叉树。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "048f3e1b8f",
+          "type": "choice",
+          "question": "在单节点二叉树中，叶子节点数 n₀ 与度为2的节点数 n₂ 满足的关系是？",
+          "options": [
+            "A. n₀ = n₂",
+            "B. n₀ = n₂ + 1",
+            "C. n₀ = n₂ - 1",
+            "D. n₀ = 2 * n₂"
+          ],
+          "answer": "B",
+          "analysis": "资料明确指出，单节点二叉树中叶子节点数 n₀ = 1，度为2的节点数 n₂ = 0，满足性质 n₀ = n₂ + 1。",
+          "knowledge_points": [
+            "二叉树的性质",
+            "叶子节点与度为2节点的关系"
+          ],
+          "knowledge_point": "二叉树的性质",
+          "score": 10,
+          "student_answer": "B",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "资料明确指出，单节点二叉树中叶子节点数 n₀ = 1，度为2的节点数 n₂ = 0，满足性质 n₀ = n₂ + 1。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "b44f7fd526",
+          "type": "choice",
+          "question": "在给定的 Python 示例代码中，创建单节点二叉树后，root.left 和 root.right 的值分别是？",
+          "options": [
+            "A. 10 和 10",
+            "B. None 和 None",
+            "C. 0 和 0",
+            "D. 空字符串和空字符串"
+          ],
+          "answer": "B",
+          "analysis": "示例代码中，TreeNode 的 __init__ 方法将 left 和 right 初始化为 None，因此单节点二叉树的左右子节点均为 None。",
+          "knowledge_points": [
+            "二叉树的Python实现",
+            "节点初始化"
+          ],
+          "knowledge_point": "二叉树的Python实现",
+          "score": 10,
+          "student_answer": "B",
+          "correct": true,
+          "score_awarded": 10,
+          "feedback": "示例代码中，TreeNode 的 __init__ 方法将 left 和 right 初始化为 None，因此单节点二叉树的左右子节点均为 None。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        },
+        {
+          "id": "c4963eb9a1",
+          "type": "choice",
+          "question": "单节点二叉树在算法中常被用作什么？",
+          "options": [
+            "A. 无限循环的起始点",
+            "B. 递归算法的终止条件",
+            "C. 唯一的数据存储结构",
+            "D. 必须包含两个子节点的标准模板"
+          ],
+          "answer": "B",
+          "analysis": "资料中提到，单节点二叉树是构建复杂二叉树的基础，常用于递归算法的终止条件。",
+          "knowledge_points": [
+            "单节点二叉树的应用",
+            "递归终止条件"
+          ],
+          "knowledge_point": "单节点二叉树的应用",
+          "score": 10,
+          "student_answer": "A",
+          "correct": false,
+          "score_awarded": 0,
+          "feedback": "资料中提到，单节点二叉树是构建复杂二叉树的基础，常用于递归算法的终止条件。",
+          "grading_status": "graded",
+          "grading_method": "auto"
+        }
+      ]
+    },
+    {
       "id": "8fa815c161",
       "exam_id": "0a1cbec9e2",
       "exam_title": "1 · 全文练习",
-      "student": "张同学",
+      "student": "student",
       "score": 30,
       "total": 50,
       "accuracy": 60,
@@ -368,7 +1032,7 @@
   "chat_history": [
     {
       "id": "7d2ed792cd9e40f5bc17289a4a0abc87",
-      "student": "陈老师",
+      "student": "teacher",
       "question": "死锁怎么解决",
       "answer": "根据提供的知识库片段，死锁的解决方法包括**预防死锁**、**避免死锁**、**死锁的检测与解除**以及**实时调度**。具体说明如下：\n\n1. **预防死锁**：通过破坏死锁产生的四个必要条件（如互斥、持有并等待、不可剥夺、循环等待）中的一个或多个，来防止死锁发生。\n2. **避免死锁**：在资源分配过程中，使用算法（如银行家算法）判断分配是否会导致系统进入不安全状态，从而避免死锁。\n3. **死锁的检测与解除**：允许系统进入死锁状态，但通过检测机制发现死锁后，采取解除措施（如撤销进程或剥夺资源）来恢复系统运行。\n4. **实时调度**：在实时系统中，通过调度策略确保任务在截止时间内完成，间接减少死锁风险。\n\n以上内容均基于知识库片段（参考资料：Chapter3：处理机调度与死锁_恢复，片段 2 和 30）。如需更详细的算法示例或步骤，建议参考课程教材或授课内容。",
       "sources": [
@@ -399,7 +1063,7 @@
     },
     {
       "id": "8cb46da3c1924e689a619b2dd1294a96",
-      "student": "陈老师",
+      "student": "teacher",
       "question": "编译有哪些阶段",
       "answer": "根据提供的知识库片段，编译过程一般分为以下阶段：\n\n- **词法扫描**（资料1，片段9）\n- **语法分析**（资料1，片段9）\n- **语义分析**（资料1，片段9）\n- **中间代码生成**（资料1，片段9）\n- **优化**（资料1，片段9）\n- **目标代码生成**（资料1，片段9）\n\n此外，知识库中提到的“预处理”不属于编译阶段（资料1，片段9中的选择题选项显示预处理不属于编译阶段）。\n\n参考资料：资料1，片段9；资料1，片段36。",
       "sources": [
@@ -430,7 +1094,7 @@
     },
     {
       "id": "0a3f03930d2e48858c3a6d2b398dd8d4",
-      "student": "陈老师",
+      "student": "teacher",
       "question": "什么是进程",
       "answer": "根据知识库内容，进程是“可并发执行的、具有独立功能的程序在一定数据集合上的一次执行过程，是操作系统进行资源分配和调度的基本单位”。简单来说，进程就是程序的一次动态执行，它包含了程序代码、数据以及执行时的状态，是系统中独立运行的活动实体。\n\n参考资料：Chapter2：进程的描述与控制，片段 21、26、18",
       "sources": [
@@ -461,7 +1125,7 @@
     },
     {
       "id": "0a4a91edcc1149e1bb97d1674bfcc165",
-      "student": "陈老师",
+      "student": "teacher",
       "question": "什么是ip",
       "answer": "根据提供的知识库片段，IP（Internet Protocol，互联网协议）是网络层的核心协议，主要负责将数据包从源主机传输到目标主机。知识库中提到了IP协议的几个关键组成部分：数据报格式（datagram format）、分片（fragmentation）、IPv4地址（IPv4 addressing）、网络地址转换（network address translation）以及IPv6。\n\n不过，这些片段仅列出了IP的组成部分，没有提供更详细的定义或解释。因此，基于现有资料，我无法进一步说明IP的具体工作原理或细节。如果需要更深入的信息，建议参考课程中关于IP协议的完整章节内容。\n\n参考资料：Chapter_4_V7.01-FJT，片段34、87、188",
       "sources": [
@@ -492,7 +1156,7 @@
     },
     {
       "id": "4ff24b35193f4119894895e8cb34414f",
-      "student": "陈老师",
+      "student": "teacher",
       "question": "有哪些数据库模型",
       "answer": "根据提供的知识库片段，最常用的逻辑数据模型包括：\n\n- **层次模型**\n- **网状模型**\n- **关系模型**\n- **面向对象模型**\n- **对象关系模型**\n\n其中，关系模型以**二维表**作为数据结构，是当前最重要的模型之一。\n\n参考资料：db_2025fall_c01，片段 47",
       "sources": [
@@ -520,6 +1184,46 @@
       ],
       "topic": "db_2025fall_c01",
       "at": "2026-07-08T19:16:03"
+    },
+    {
+      "id": "cee1555a4d2d43c783fb2cadd1c7097f",
+      "student": "student",
+      "question": "进程描述",
+      "answer": "根据提供的知识库片段，进程的描述主要围绕 **进程控制块（PCB）** 展开，具体如下：\n\n1.  **核心数据结构：进程控制块（PCB）**\n    *   PCB 是操作系统用于描述进程状况和控制进程运行所需的基本信息。\n    *   每个进程都有一个 PCB，操作系统通过**读或写 PCB 中的信息**来了解和管理进程。\n    *   **创建进程**的实质是创建进程实体中的 **PCB**；**撤销进程**的实质是撤销进程的 **PCB**。\n\n2.  **进程实体（进程映像）的组成**\n    进程实体由以下三部分构成，简称为进程：\n    *   **程序段**\n    *   **相关的数据段**\n    *   **进程控制块（PCB）**\n\n3.  **PCB 包含的主要内容**\n    *   **进程标识符**：包括内部标识符和外部标识符。\n    *   **处理机状态**\n    *   **进程调度信息**\n    *   **进程控制信息**\n\n4.  **进程间的关系描述（进程图）**\n    *   进程之间形成**树形结构**：创建其他进程的称为**父进程**，被创建的称为**子进程**。\n    *   **继承与归还**：子进程可以继承父进程的所有资源；子进程撤销时，向父进程归还资源。\n    *   **级联撤销**：父进程撤销时，所有子进程也被撤销。",
+      "sources": [
+        {
+          "document_id": "8d2f21e43f",
+          "document": "Chapter2：进程的描述与控制",
+          "content": "2.2.4 进程管理中的数据结构Process Control Block对进程本质属性的描述，是操作系统管理进程所需要的基本信息。记录操作系统用于描述进程状况和控制进程运行所需要的基本信息。每个进程都有一个进程控制块，进程是动态变化的，进程控制块中的信息也是变化的，操作系统通过读或写进程控制块中的信息达到了解进程，记录进程变化的目的。PCB内容：进程标识符：内部标识符外部标识符处理机状态进程调度信息进程控制信息自行学习清华MOOC：",
+          "chunk": 52,
+          "page": 47,
+          "start_time": null,
+          "end_time": null,
+          "score": 0.5647
+        },
+        {
+          "document_id": "8d2f21e43f",
+          "document": "Chapter2：进程的描述与控制",
+          "content": "2.3.2 进程的创建进程图生成进程称父进程（Parent Process） ，被生成进程称子进程（Child Process）、即一个父进程可以创建子进程，从而形成树形结构。关系子进程可以继承父进程的所有资源子进程撤销时，向父进程归还资源父进程撤销时，所有子进程也被撤销",
+          "chunk": 70,
+          "page": 61,
+          "start_time": null,
+          "end_time": null,
+          "score": 0.5258
+        },
+        {
+          "document_id": "8d2f21e43f",
+          "document": "Chapter2：进程的描述与控制",
+          "content": "2.2.1 进程的定义与特征进程控制块PCB：专门的数据结构，用来描述进程的基本情况和活动过程，进而控制和管理进程。进程实体：程序段、相关的数据段、PCB三部分构成了进程实体（简称为进程），又称为进程映像。所谓创建进程，就是创建进程实体中的PCB；所谓撤销进程，实质上是撤销进程的PCB。",
+          "chunk": 25,
+          "page": 24,
+          "start_time": null,
+          "end_time": null,
+          "score": 0.4869
+        }
+      ],
+      "topic": "Chapter2：进程的描述与控制",
+      "at": "2026-07-11T16:09:25"
     }
   ]
 }

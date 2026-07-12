@@ -6,9 +6,8 @@ router = APIRouter()
 
 
 @router.get("/student")
-def student_analysis(student: str = "张同学"):
+def student_analysis(student: str):
     return build_analysis(student)
-
 
 @router.get("/class")
 def class_analysis():
