@@ -14,11 +14,37 @@ def build_analysis(student: str | None = None) -> dict:
         if (not student or item["student"] == student) and item.get("status", "graded") == "graded"
     ]
     exam_topics: dict[str, list[int]] = {}
+
     for submission in submissions:
         for detail in submission["details"]:
             if detail.get("grading_status", "graded") != "graded":
                 continue
-            exam_topics.setdefault(detail["knowledge_point"], []).append(100 if detail["correct"] else 0)
+
+            # 优先读取多个知识点
+            knowledge_points = detail.get("knowledge_points")
+
+            # 兼容以前只有一个 knowledge_point 的旧题目
+            if not knowledge_points:
+                knowledge_points = [
+                    detail.get("knowledge_point", "综合知识")
+                ]
+
+            # 防止数据中 knowledge_points 意外仍是字符串
+            if isinstance(knowledge_points, str):
+                knowledge_points = [knowledge_points]
+
+            # 去重并清理空知识点
+            knowledge_points = {
+                str(point).strip()
+                for point in knowledge_points
+                if str(point).strip()
+            }
+
+            score = 100 if detail.get("correct") else 0
+
+            # 同一道题的结果计入它所属的每一个知识点
+            for topic in knowledge_points:
+                exam_topics.setdefault(topic, []).append(score)
     for topic, scores in exam_topics.items():
         topics.setdefault(topic, []).extend(scores)
     mastery = sorted(

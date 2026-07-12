@@ -860,9 +860,55 @@ function Wrongbook({user}) {
 };
 
   // 过滤错题：未选择时显示全部，选择多个时显示任一知识点对应的错题
+const getQuestionKnowledgePoints = (question) => {
+  if (Array.isArray(question.knowledge_points)) {
+    return question.knowledge_points;
+  }
+
+  // 兼容旧错题
+  if (question.knowledge_point) {
+    return [question.knowledge_point];
+  }
+
+  return [];
+};
+
 const filteredItems = filters.length > 0
-  ? items.filter(q => filters.includes(q.knowledge_point))
+  ? items.filter(question => {
+      const questionPoints = getQuestionKnowledgePoints(question);
+
+      // 只要题目包含任意一个已选知识点，就显示
+      return filters.some(filterPoint =>
+        questionPoints.includes(filterPoint)
+      );
+    })
   : items;
+
+const knowledgePointTags = useMemo(() => {
+  const topicMap = new Map();
+
+  // 先加入掌握度中的知识点
+  mastery.forEach(item => {
+    topicMap.set(item.topic, {
+      topic: item.topic,
+      score: item.score,
+    });
+  });
+
+  // 再加入错题中的全部知识点
+  items.forEach(question => {
+    getQuestionKnowledgePoints(question).forEach(point => {
+      if (!topicMap.has(point)) {
+        topicMap.set(point, {
+          topic: point,
+          score: null,
+        });
+      }
+    });
+  });
+
+  return Array.from(topicMap.values());
+}, [mastery, items]);
 
  return (
     <>
@@ -878,7 +924,7 @@ const filteredItems = filters.length > 0
       {mastery.length > 0 && (
         <div className="mastery-tags" style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
           <span style={{ fontWeight: 'bold', marginRight: '10px' }}>知识点掌握度：</span>
-          {mastery.map(m => (
+          {knowledgePointTags.map(m => (
             <span
               key={m.topic}
               onClick={() => handleTagClick(m.topic)}
@@ -895,7 +941,7 @@ const filteredItems = filters.length > 0
   : '1px solid transparent',
               }}
             >
-              {m.topic} {m.score}%
+              {m.topic}{m.score !== null ? ` ${m.score}%` : ''}
             </span>
           ))}
           {filters.length > 0 && (
@@ -935,7 +981,17 @@ const filteredItems = filters.length > 0
             <article className="panel wrong-item" key={q.exam_id + q.id}>
               <div className="wrong-meta">
                 <span>{q.exam_title}</span>
-                <em>{q.knowledge_point}</em>
+               <div
+  style={{
+    display: 'flex',
+    gap: '6px',
+    flexWrap: 'wrap',
+  }}
+>
+  {getQuestionKnowledgePoints(q).map(point => (
+    <em key={point}>{point}</em>
+  ))}
+</div>
               </div>
               <h3>{i+1}. {q.question}</h3>
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
