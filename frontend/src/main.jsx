@@ -164,7 +164,6 @@ function Login({onLogin}) {
     </div>
   );
 }
-
 const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['grading','试卷批改',CheckCircle2],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
 const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
@@ -216,7 +215,6 @@ function Shell({ user, onLogout }) {
     </ErrorBoundary></main></div>
 }
 class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error){sessionStorage.removeItem('mainrag-error-refreshing');this.setState({error:null})}}componentDidCatch(){if(!sessionStorage.getItem('mainrag-error-refreshing')){sessionStorage.setItem('mainrag-error-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-error-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
-
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
 function Dashboard({user, go}) {
   const role = user.role;
@@ -293,22 +291,18 @@ function Dashboard({user, go}) {
     </>
   );
 }
-
 function renderInlineMarkdown(text){
   const parts=String(text||'').split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part)
 }
-
 function SourceSup({source,index,onSourceClick}){
   if(!source)return null;
   return <sup className="source-sup" title={`来源 ${index+1}：${source.document}`} onClick={e=>{e.stopPropagation();onSourceClick?.(source)}}>[{index+1}]</sup>
 }
-
 function SourceSups({items=[],onSourceClick}){
   if(!items.length)return null;
   return <span className="source-sup-group">{items.map(({source,index})=><SourceSup key={index} source={source} index={index} onSourceClick={onSourceClick}/>)}</span>
 }
-
 function MarkdownText({text,sources=[],onSourceClick}){
   const cleanText=String(text||'').replace(/\n?\s*(参考资料|参考来源|资料来源|来源)\s*[:：][\s\S]*$/,'');
   const lines=cleanText.split('\n');
@@ -364,21 +358,18 @@ function MarkdownText({text,sources=[],onSourceClick}){
   });
   return <div className="markdown-body">{blocks}</div>
 }
-
 function formatSourceTime(seconds){
   const value=Math.max(0,Number(seconds)||0);
   const minutes=Math.floor(value/60);
   const rest=Math.floor(value%60);
   return `${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`
 }
-
 function sourceLocationLabel(source){
   if(source?.start_time!==undefined&&source?.start_time!==null&&source?.end_time!==undefined&&source?.end_time!==null){
     return `${formatSourceTime(source.start_time)} - ${formatSourceTime(source.end_time)}`
   }
   return source?.page?`第 ${source.page} 页`:`片段 ${source?.chunk||''}`
 }
-
 function parseMediaCaptions(content=''){
   const pattern=/\[\[TIME:(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\]\]([\s\S]*?)(?=\[\[TIME:|$)/g;
   const rows=[];
@@ -389,7 +380,6 @@ function parseMediaCaptions(content=''){
   }
   return rows;
 }
-
 function Chat({user}){
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[photoLoading,setPhotoLoading]=useState(false),[photoPreview,setPhotoPreview]=useState(null),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
@@ -468,7 +458,6 @@ function Chat({user}){
   };
   return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside></div>
 }
-
 function Knowledge({ user }) {
   const isTeacher = user.role === 'teacher';
   const [docs, setDocs] = useState([]), [selected, setSelected] = useState(null), [uploading, setUploading] = useState(false), [reindexing, setReindexing] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [uploadName, setUploadName] = useState(''), [msg, setMsg] = useState(''), [searchTerm, setSearchTerm] = useState('');
@@ -589,7 +578,6 @@ function Knowledge({ user }) {
     </section>}
   </>
 }
-
 function Analysis({role}){
   const [data,setData]=useState(null);
   useEffect(()=>{
@@ -621,8 +609,8 @@ function Analysis({role}){
           <ResponsiveContainer>
             <BarChart data={mastery} layout="vertical" margin={{left:20,right:30}}>
               <CartesianGrid stroke="#eef1f7" horizontal={false}/>
-              <XAxis type="number" domain={[0,100]} axisLine={false}/>
-              <YAxis type="category" dataKey="topic" width={90} axisLine={false} tickLine={false}/>
+              <XAxis type="number" domain={[0, 100]} axisLine={false} />
+              <YAxis type="category" dataKey="topic" width={90} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
               <Tooltip/>
               <Bar
                 dataKey="score"
@@ -659,9 +647,7 @@ function Analysis({role}){
     </section>}
   </>;
 }
-
 function questionTypeText(type){return type==='choice'?'单选题':type==='fill'?'填空题':type==='solution'?'解答题':'题目'}
-
 function TeacherExams(){
   const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等',question_types:['choice','fill','solution']}),[loading,setLoading]=useState(false),[msg,setMsg]=useState(''),[preview,setPreview]=useState(null),[selected,setSelected]=useState([]);
   const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});
@@ -673,12 +659,9 @@ function TeacherExams(){
   const publish=async (exam=preview)=>{if(!exam)return;if(!selected.length){setMsg('请至少勾选一道习题再发布。');return}await post(`/exams/${exam.id}/publish`,{question_ids:selected});setMsg('已发布到学生端');setPreview(null);setSelected([]);load()};
   const remove=async id=>{if(!confirm('确定删除这套习题吗？'))return;await request(`/exams/${id}`,{method:'DELETE'});if(preview?.id===id){setPreview(null);setSelected([])}load()};
   return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice','单选题'],['fill','填空题'],['solution','解答题']].map(([type,label])=><label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={()=>toggleType(type)}/>{label}</label>)}</div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>openPreview(exam)}>预览发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div>{preview&&<section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={()=>setSelected(preview.questions.map(q=>q.id))}>全选</button><button className="secondary-btn" onClick={()=>setSelected([])}>清空</button><button className="primary" onClick={()=>publish(preview)}>发布所选</button><button onClick={()=>setPreview(null)}><X/></button></div></div><div className="preview-questions">{preview.questions.map((q,i)=><article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={()=>toggleQuestion(q.id)}/><span>{i+1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length>0&&<ul>{q.options.map(o=><li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis&&<p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}</>}
-
-
 function StudentExamsLegacy({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`)]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(load,[]);const submitted=id=>subs.find(s=>s.exam_id===id);const open=exam=>{setActive(exam);setAnswers({});setResult(null)};const submit = () => {
   setShowConfirm(true);
 };
-
 const doSubmit = async () => {
   setShowConfirm(false);
   const data = await post(`/exams/${active.id}/submit`, { student: user.name, answers });
@@ -695,7 +678,6 @@ const doSubmit = async () => {
     </div>
   </div>
 )}</section>;return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>完成教师发布的习题，结果会自动进入学情分析和错题本。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className="done"><CheckCircle2/>已完成 {done.accuracy}%</span>}</div><button onClick={()=>open(exam)}>{done?'重新练习':'开始练习'}<ChevronRight/></button></article>})}</div></>}
-
 function StudentExams({ user }) {
   const [items, setItems] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -734,7 +716,7 @@ function StudentExams({ user }) {
     const pending = result?.status === 'pending_teacher';
     return <section className="panel take-exam">
       <button className="back-link" onClick={() => setActive(null)}>← 返回练习中心</button>
-      <div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result && <strong>{pending ? '待教师批改' : `${result.score}/${result.total}`}</strong>}</div>
+      <div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result && (pending ? <strong>待教师批改</strong> : <div className="result-celebration"><img src={EmptyCelebration} alt="完成" className="celebration-icon" /><div className="celebration-text"><span className="celebration-score">{result.score}/{result.total}</span><span className="celebration-label">🎉 练习完成！</span></div></div>)}</div>
       {pending && <div className="grading-status pending">解答题已发送到教师端。教师完成评分和评语后，这里会显示最终成绩。</div>}
       {result?.status === 'graded' && result.overall_comment && <div className="grading-status graded"><b>教师总评：</b>{result.overall_comment}</div>}
       {active.questions.map((question, index) => {
@@ -780,41 +762,187 @@ function StudentExams({ user }) {
       <p>教师发布习题后，这里就会显示啦</p>
     </div> : items.map(exam => { const done = submitted(exam.id); return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList /></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done && <span className={`done ${done.status === 'pending_teacher' ? 'pending' : ''}`}><CheckCircle2 />{done.status === 'pending_teacher' ? '待教师批改' : `已完成 ${done.accuracy}%`}</span>}</div><button onClick={() => open(exam)}>{done ? '查看结果' : '开始练习'}<ChevronRight /></button></article> })}</div></>
 }
-
-function TeacherGrading(){
-  const [items,setItems]=useState([]);
-  const [active,setActive]=useState(null);
-  const [grades,setGrades]=useState({});
-  const [overall,setOverall]=useState('');
-  const [message,setMessage]=useState('');
-  const [saving,setSaving]=useState(false);
-  const load=()=>request('/exams/submissions/all',{cache:false}).then(data=>{
+function TeacherGrading() {
+  const [items, setItems] = useState([]);
+  const [active, setActive] = useState(null);
+  const [grades, setGrades] = useState({});
+  const [overall, setOverall] = useState('');
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const load = () => request('/exams/submissions/all', { cache: false }).then(data => {
     setItems(data.items);
-    setActive(current=>data.items.find(item=>item.id===current?.id)||data.items.find(item=>item.status==='pending_teacher')||data.items[0]||null);
+    setActive(current => data.items.find(item => item.id === current?.id) || data.items.find(item => item.status === 'pending_teacher') || data.items[0] || null);
   });
-  useEffect(()=>{load()},[]);
-  useEffect(()=>{
-    if(!active)return;
-    setGrades(Object.fromEntries(active.details.filter(detail=>detail.type==='solution').map(detail=>[detail.id,{score:detail.score_awarded??'',comment:detail.teacher_comment||detail.feedback||''}])));
-    setOverall(active.overall_comment||'');setMessage('');
-  },[active?.id]);
-  const update=(id,key,value)=>setGrades(current=>({...current,[id]:{...current[id],[key]:value}}));
-  const submit=async()=>{
-    const pending=active.details.filter(detail=>detail.type==='solution'&&detail.grading_status==='pending');
-    if(pending.some(detail=>grades[detail.id]?.score==='')){setMessage('请填写全部解答题分数。');return}
-    setSaving(true);setMessage('');
-    try{
-      const payload={grades:Object.fromEntries(pending.map(detail=>[detail.id,{score:Number(grades[detail.id].score),comment:grades[detail.id].comment||''}])),overall_comment:overall};
-      const graded=await post(`/exams/submissions/${active.id}/grade`,payload);
-      setMessage('批改已完成，成绩和评语已同步到学生端。');setActive(graded);await load();
-    }catch(error){setMessage(error.message)}finally{setSaving(false)}
+  useEffect(() => { load() }, []);
+  useEffect(() => {
+    if (!active) return;
+    setGrades(Object.fromEntries(active.details.filter(detail => detail.type === 'solution').map(detail => [detail.id, { score: detail.score_awarded ?? '', comment: detail.teacher_comment || detail.feedback || '' }])));
+    setOverall(active.overall_comment || '');
+    setMessage('');
+  }, [active?.id]);
+  const update = (id, key, value) => setGrades(current => ({ ...current, [id]: { ...current[id], [key]: value } }));
+  const submit = async () => {
+    const pending = active.details.filter(detail => detail.type === 'solution' && detail.grading_status === 'pending');
+    if (pending.some(detail => grades[detail.id]?.score === '')) { setMessage('请填写全部解答题分数。'); return }
+    setSaving(true);
+    setMessage('');
+    try {
+      const payload = { grades: Object.fromEntries(pending.map(detail => [detail.id, { score: Number(grades[detail.id].score), comment: grades[detail.id].comment || '' }])), overall_comment: overall };
+      const graded = await post(`/exams/submissions/${active.id}/grade`, payload);
+      setMessage('批改已完成，成绩和评语已同步到学生端。');
+      setActive(graded);
+      await load();
+    } catch (error) { setMessage(error.message) } finally { setSaving(false) }
   };
-  const pendingCount=items.filter(item=>item.status==='pending_teacher').length;
-  return <><section className="analysis-title"><div><span className="eyebrow"><CheckCircle2 size={15}/>人工评分</span><h1>试卷批改</h1><p>查看学生提交的解答题，逐题评分并填写评语。</p></div></section><div className="grading-layout"><aside className="panel submission-list"><div className="panel-head"><div><h3>提交记录</h3><p>{pendingCount} 份待批改</p></div></div>{items.length===0?<div className="empty">暂无学生提交</div>:items.map(item=><button key={item.id} className={active?.id===item.id?'active':''} onClick={()=>setActive(item)}><span><b>{item.student}</b><small>{item.exam_title} · {item.submitted_at}</small></span><em className={item.status}>{item.status==='pending_teacher'?'待批改':'已完成'}</em></button>)}</aside><section className="panel grading-paper">{!active?<div className="empty">请选择一份试卷</div>:<><div className="panel-head"><div><h3>{active.exam_title}</h3><p>{active.student} · 提交于 {active.submitted_at}</p></div><strong>{active.status==='graded'?`${active.score}/${active.total}`:'待评分'}</strong></div>{active.details.map((detail,index)=><article className="grading-question" key={detail.id}><h4><span>{index+1}</span><em>{questionTypeText(detail.type)}</em>{detail.question}</h4><div className="student-answer"><b>学生答案</b><p>{detail.student_answer||'（未作答）'}</p></div>{detail.type==='solution'?<div className="teacher-grade"><label>得分（满分 {detail.score}）<input type="number" min="0" max={detail.score} step="0.5" disabled={active.status==='graded'} value={grades[detail.id]?.score??''} onChange={event=>update(detail.id,'score',event.target.value)}/></label><label>教师评语<textarea disabled={active.status==='graded'} value={grades[detail.id]?.comment||''} onChange={event=>update(detail.id,'comment',event.target.value)} placeholder="写出得分依据和改进建议"/></label><details><summary>查看参考答案</summary><p>{detail.answer}</p></details></div>:<div className="auto-grade"><span>系统判分：{detail.score_awarded}/{detail.score}</span><p>标准答案：{detail.answer}</p></div>}</article>)}<label className="overall-comment">总评<textarea disabled={active.status==='graded'} value={overall} onChange={event=>setOverall(event.target.value)} placeholder="填写本次作答的整体评价与学习建议"/></label>{message&&<div className="notice">{message}</div>}{active.status==='pending_teacher'&&<button className="primary grade-submit" disabled={saving} onClick={submit}>{saving?'正在保存…':'完成批改并发送给学生'}</button>}</>}</section></div></>
+  const pendingCount = items.filter(item => item.status === 'pending_teacher').length;
+
+  // 获取知识点（兼容单值或数组）
+  const getKnowledgePoints = (detail) => {
+    if (detail.knowledge_points && Array.isArray(detail.knowledge_points)) {
+      return detail.knowledge_points;
+    }
+    if (detail.knowledge_point) {
+      return [detail.knowledge_point];
+    }
+    return [];
+  };
+
+  return <>
+    <section className="analysis-title">
+      <div>
+        <span className="eyebrow"><CheckCircle2 size={15} />人工评分</span>
+        <h1>试卷批改</h1>
+        <p>查看学生提交的解答题，逐题评分并填写评语。</p>
+      </div>
+    </section>
+    {/* 顶部横向标签 */}
+    <div className="grading-tabs-wrapper">
+      <div className="grading-tabs-head">
+        <span className="grading-tabs-label">提交记录</span>
+        <span className="grading-tabs-count">{pendingCount} 份待批改</span>
+      </div>
+      <div className="grading-tabs-list">
+        {items.length === 0 ? (
+          <span className="grading-tabs-empty">暂无学生提交</span>
+        ) : (
+          items.map(item => (
+            <button
+              key={item.id}
+              className={`grading-tab ${active?.id === item.id ? 'active' : ''}`}
+              onClick={() => setActive(item)}
+            >
+              <span className="grading-tab-name">{item.student}</span>
+              <span className="grading-tab-meta">
+                {item.exam_title}
+                <em className={item.status}>{item.status === 'pending_teacher' ? '待批改' : '已完成'}</em>
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+    {/* 批改区 - 全宽 */}
+    <section className="grading-paper-full">
+      {!active ? (
+        <div className="empty">请选择一份试卷</div>
+      ) : (
+        <>
+          <div className="panel-head">
+            <div>
+              <h3>{active.exam_title}</h3>
+              <p>{active.student} · 提交于 {active.submitted_at}</p>
+            </div>
+            <strong>{active.status === 'graded' ? `${active.score}/${active.total}` : '待评分'}</strong>
+          </div>
+          {active.details.map((detail, index) => {
+            const isWrong = detail.correct === false;
+            const knowledgePoints = getKnowledgePoints(detail);
+            return (
+              <article className="grading-question" key={detail.id}>
+                <h4>
+                  <span>{index + 1}</span>
+                  <em>{questionTypeText(detail.type)}</em>
+                  {detail.question}
+                </h4>
+                <div className={`student-answer ${isWrong ? 'wrong' : ''}`}>
+                  <b>学生答案</b>
+                  <p>{detail.student_answer || '（未作答）'}</p>
+                  {isWrong && <span className="wrong-tag">✗ 错误</span>}
+                </div>
+                {detail.type === 'solution' ? (
+                  <div className="teacher-grade">
+                    <label>
+                      得分（满分 {detail.score}）
+                      <input
+                        type="number"
+                        min="0"
+                        max={detail.score}
+                        step="0.5"
+                        disabled={active.status === 'graded'}
+                        value={grades[detail.id]?.score ?? ''}
+                        onChange={event => update(detail.id, 'score', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      教师评语
+                      <textarea
+                        disabled={active.status === 'graded'}
+                        value={grades[detail.id]?.comment || ''}
+                        onChange={event => update(detail.id, 'comment', event.target.value)}
+                        placeholder="写出得分依据和改进建议"
+                      />
+                    </label>
+                    <details>
+                      <summary>查看参考答案</summary>
+                      <p>{detail.answer}</p>
+                    </details>
+                    {/* 知识点标签 — 紧跟在参考答案下面 */}
+                    {knowledgePoints.length > 0 && (
+                      <div className="question-knowledge-footer" style={{ marginTop: '8px' }}>
+                        {knowledgePoints.map(point => (
+                          <span key={point} className="knowledge-tag-blue">{point}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="auto-grade">
+                    <span>系统判分：{detail.score_awarded}/{detail.score}</span>
+                    <p>标准答案：{detail.answer}</p>
+                    {/* 知识点标签 — 紧跟在标准答案下面 */}
+                    {knowledgePoints.length > 0 && (
+                      <div className="question-knowledge-footer" style={{ marginTop: '6px' }}>
+                        {knowledgePoints.map(point => (
+                          <span key={point} className="knowledge-tag-blue">{point}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          <label className="overall-comment">
+            总评
+            <textarea
+              disabled={active.status === 'graded'}
+              value={overall}
+              onChange={event => setOverall(event.target.value)}
+              placeholder="填写本次作答的整体评价与学习建议"
+            />
+          </label>
+          {message && <div className="notice">{message}</div>}
+          {active.status === 'pending_teacher' && (
+            <button className="primary grade-submit" disabled={saving} onClick={submit}>
+              {saving ? '正在保存…' : '完成批改并发送给学生'}
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  </>
 }
-
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
-
 function Wrongbook({ user }) {
   const [items, setItems] = useState([]);
   const [mastery, setMastery] = useState([]);
@@ -1004,17 +1132,6 @@ function Wrongbook({ user }) {
             <article className="panel wrong-item" key={q.exam_id + q.id}>
               <div className="wrong-meta">
                 <span>{q.exam_title}</span>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '6px',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {getQuestionKnowledgePoints(q).map(point => (
-                    <em key={point}>{point}</em>
-                  ))}
-                </div>
               </div>
               <h3>{i + 1}. {q.question}</h3>
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
@@ -1027,6 +1144,5 @@ function Wrongbook({ user }) {
     </>
   );
 }
-
 function App(){const isLoginPage=location.pathname==='/login';const [user,setUser]=useState(()=>{if(isLoginPage)return null;try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user&&!isLoginPage?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
 createRoot(document.getElementById('root')).render(<App/>);
