@@ -84,7 +84,10 @@ async def chat_stream(body: ChatRequest):
 
 
 @router.post("/chat/photo-search")
-async def photo_search(student: str = Form("张同学"), file: UploadFile = File(...)):
+async def photo_search(
+    student: str = Form(...),
+    file: UploadFile = File(...)
+):
     ocr_text = await extract_question_text(file)
     question = (
         "请根据下面拍照识别出的题目进行解答。"
@@ -106,7 +109,7 @@ async def photo_search(student: str = Form("张同学"), file: UploadFile = File
 
 
 @router.get("/chat/history")
-async def chat_history(student: str = "", limit: int = 30):
+async def chat_history(student: str, limit: int = 30):
     data = store.load()
     items = data.get("chat_history", [])
     if student:
@@ -116,7 +119,7 @@ async def chat_history(student: str = "", limit: int = 30):
 
 
 @router.delete("/chat/history/{history_id}")
-async def delete_chat_history(history_id: str, student: str = ""):
+async def delete_chat_history(history_id: str, student: str):
     data = store.load()
     items = data.get("chat_history", [])
     kept = []
