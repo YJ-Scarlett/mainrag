@@ -44,3 +44,249 @@
 .question-knowledge-footer{margin-top:14px;padding-top:12px;border-top:1px solid #edf0f4;display:flex;flex-wrap:wrap;gap:6px}
 .knowledge-tag-blue{background:#e8edff;color:#4a6cf7;font-size:12px;padding:2px 16px;border-radius:20px;font-weight:500;display:inline-block}
 .result-celebration{display:flex;align-items:center;gap:12px;background:#f0f7ff;border-radius:16px;padding:8px 18px 8px 12px}.celebration-icon{width:40px;height:40px}.celebration-text{display:flex;flex-direction:column;align-items:flex-start}.celebration-score{font-size:22px;font-weight:700;color:#1a2332;line-height:1.2}.celebration-label{font-size:12px;color:#4a6cf7;font-weight:500}
+                                                                                                                                                                                                                                                                                                                                  /* =========================================================
+   错题本：知识点掌握度分类折叠
+   ========================================================= */
+
+.mastery-filter-panel {
+  margin: 20px 0 26px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e7eaf1;
+  border-radius: 18px;
+}
+
+
+/* 顶部标题区域 */
+.mastery-filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.mastery-filter-header h3 {
+  margin: 0 0 5px;
+  color: #172033;
+  font-size: 18px;
+}
+
+.mastery-filter-header p {
+  margin: 0;
+  color: #8a94a7;
+  font-size: 13px;
+}
+
+
+/* 清除筛选 */
+.mastery-clear-button {
+  padding: 7px 13px;
+  border: 1px solid #d8ddeb;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #647089;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mastery-clear-button:hover {
+  border-color: #627eea;
+  color: #627eea;
+  background: #f5f7ff;
+}
+
+
+/* 每一个分类区域 */
+.mastery-group {
+  margin-top: 10px;
+  border: 1px solid #e8ebf2;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+
+/* 分类标题按钮 */
+.mastery-group-header {
+  width: 100%;
+  min-height: 62px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mastery-group-header:hover {
+  background: #f8f9fc;
+}
+
+
+/* 左侧标题 */
+.mastery-group-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mastery-group-title > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mastery-group-title strong {
+  color: #263043;
+  font-size: 15px;
+}
+
+.mastery-group-title small {
+  color: #969fb0;
+  font-size: 12px;
+}
+
+
+/* 状态圆点 */
+.mastery-status-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+
+/* 三种状态颜色 */
+.mastery-group.weak .mastery-status-dot {
+  background: #ef6b73;
+}
+
+.mastery-group.consolidating .mastery-status-dot {
+  background: #e5ad42;
+}
+
+.mastery-group.mastered .mastery-status-dot {
+  background: #45b889;
+}
+
+
+/* 右侧数量与箭头 */
+.mastery-group-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #8b95a7;
+  font-size: 13px;
+}
+
+.mastery-arrow {
+  width: 24px;
+  font-size: 22px;
+  text-align: center;
+}
+
+
+/* 展开后的标签区域 */
+.mastery-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 16px 16px;
+}
+
+
+/* 知识点标签 */
+.mastery-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 13px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.mastery-tag span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mastery-tag strong {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+
+/* 薄弱 */
+.mastery-tag.weak {
+  background: #fff3f4;
+  color: #c6535c;
+}
+
+.mastery-tag.weak:hover {
+  border-color: #ef8c92;
+}
+
+
+/* 待巩固 */
+.mastery-tag.consolidating {
+  background: #fff8e9;
+  color: #a97925;
+}
+
+.mastery-tag.consolidating:hover {
+  border-color: #e9be68;
+}
+
+
+/* 已掌握 */
+.mastery-tag.mastered {
+  background: #edf9f4;
+  color: #338b69;
+}
+
+.mastery-tag.mastered:hover {
+  border-color: #6fc8a5;
+}
+
+
+/* 被选中的知识点 */
+.mastery-tag.selected {
+  color: #ffffff;
+  background: #627eea;
+  border-color: #627eea;
+  box-shadow: 0 3px 10px rgba(98, 126, 234, 0.22);
+}
+
+
+/* 空分类 */
+.mastery-empty {
+  width: 100%;
+  padding: 10px 2px 2px;
+  color: #9ca5b5;
+  font-size: 13px;
+}
+
+
+/* 手机端 */
+@media (max-width: 768px) {
+  .mastery-filter-panel {
+    padding: 14px;
+  }
+
+  .mastery-filter-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mastery-tag {
+    max-width: 100%;
+  }
+}

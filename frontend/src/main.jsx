@@ -214,7 +214,70 @@ function Shell({ user, onLogout }) {
       </div>
     </ErrorBoundary></main></div>
 }
-class ErrorBoundary extends React.Component{constructor(props){super(props);this.state={error:null}}static getDerivedStateFromError(error){return{error}}componentDidUpdate(prev){if(prev.resetKey!==this.props.resetKey&&this.state.error){sessionStorage.removeItem('mainrag-error-refreshing');this.setState({error:null})}}componentDidCatch(){if(!sessionStorage.getItem('mainrag-error-refreshing')){sessionStorage.setItem('mainrag-error-refreshing','1');setTimeout(()=>location.reload(),80)}}componentDidMount(){sessionStorage.removeItem('mainrag-error-refreshing')}render(){if(this.state.error)return null;return this.props.children}}
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      error: null,
+    };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      error,
+    };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // 在浏览器控制台打印真实错误，
+    // 不再自动刷新页面，避免无限闪动
+    console.error('页面组件发生错误：', error);
+    console.error('错误详情：', errorInfo);
+  }
+
+  componentDidUpdate(prevProps) {
+    // 切换页面后自动清除上一个页面的错误状态
+    if (
+      prevProps.resetKey !== this.props.resetKey &&
+      this.state.error
+    ) {
+      this.setState({
+        error: null,
+      });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="panel page-error">
+          <AlertCircle />
+
+          <h3>页面加载失败</h3>
+
+          <p>
+            {this.state.error?.message || '页面发生未知错误'}
+          </p>
+
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              this.setState({
+                error: null,
+              });
+            }}
+          >
+            重试
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
 function Dashboard({user, go}) {
   const role = user.role;
@@ -952,11 +1015,22 @@ function TeacherGrading() {
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
 function Wrongbook({ user }) {
   const [items, setItems] = useState([]);
+
   const [mastery, setMastery] = useState([]);
+
+  // 当前选中的知识点筛选条件
   const [filters, setFilters] = useState(() => {
     const params = new URLSearchParams(location.search);
     return params.getAll('knowledge');
   });
+
+  // 控制三个掌握度分类的展开与收起
+  const [expandedMasteryGroups, setExpandedMasteryGroups] = useState({
+    weak: true,            // 薄弱知识点默认展开
+    consolidating: false,  // 待巩固默认折叠
+    mastered: false,       // 已掌握默认折叠
+  });
+
   const [loading, setLoading] = useState(true);
 
   // 加载错题和学情数据
@@ -1069,6 +1143,39 @@ function Wrongbook({ user }) {
     return Array.from(topicMap.values());
   }, [mastery, items]);
 
+  // 按掌握度划分为三个阶段
+const masteryGroups = useMemo(() => {
+  return {
+    // 薄弱知识点：低于 60%
+    // score 为 null 表示暂无完整掌握度数据，但该知识点存在于错题中，
+    // 为避免知识点消失，这里暂时归入薄弱组
+    weak: knowledgePointTags.filter(item =>
+      item.score === null || item.score < 60
+    ),
+
+    // 待巩固：60% - 79%
+    consolidating: knowledgePointTags.filter(item =>
+      item.score !== null &&
+      item.score >= 60 &&
+      item.score < 80
+    ),
+
+    // 已掌握：80% 及以上
+    mastered: knowledgePointTags.filter(item =>
+      item.score !== null &&
+      item.score >= 80
+    ),
+  };
+}, [knowledgePointTags]);
+
+// 点击分类标题时，切换展开/收起状态
+const toggleMasteryGroup = (groupName) => {
+  setExpandedMasteryGroups(previous => ({
+    ...previous,
+    [groupName]: !previous[groupName],
+  }));
+};
+
   return (
     <>
       <section className="analysis-title">
@@ -1079,51 +1186,200 @@ function Wrongbook({ user }) {
         </div>
       </section>
 
-      {/* 掌握度标签 */}
-      {mastery.length > 0 && (
-        <div className="mastery-tags" style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-          <span style={{ fontWeight: 'bold', marginRight: '10px' }}>知识点掌握度：</span>
-          {knowledgePointTags.map(m => (
-            <span
-              key={m.topic}
-              onClick={() => handleTagClick(m.topic)}
-              style={{
-                padding: '4px 14px',
-                borderRadius: '20px',
-                background: filters.includes(m.topic) ? '#5577ee' : '#eef1f7',
-                color: filters.includes(m.topic) ? '#fff' : '#333',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: '0.2s',
-                border: filters.includes(m.topic)
-                  ? '1px solid #5577ee'
-                  : '1px solid transparent',
-              }}
-            >
-              {m.topic}{m.score !== null ? ` ${m.score}%` : ''}
-            </span>
-          ))}
-          {filters.length > 0 && (
-            <button
-              onClick={() => handleTagClick('')}
-              style={{
-                padding: '4px 14px',
-                borderRadius: '20px',
-                background: '#f0f0f0',
-                border: '1px solid #ccc',
-                cursor: 'pointer',
-                fontSize: '14px',
-              }}
-            >
-              清除筛选
-            </button>
+      {/* 按掌握度分类展示知识点 */}
+{knowledgePointTags.length > 0 && (
+  <section className="mastery-filter-panel">
+
+    {/* 顶部标题 */}
+    <div className="mastery-filter-header">
+      <div>
+        <h3>知识点掌握度</h3>
+        <p>点击知识点可以筛选对应错题，支持多选</p>
+      </div>
+
+      {/* 有筛选条件时显示清除按钮 */}
+      {filters.length > 0 && (
+        <button
+          className="mastery-clear-button"
+          onClick={() => handleTagClick('')}
+        >
+          清除筛选（{filters.length}）
+        </button>
+      )}
+    </div>
+
+
+    {/* =========================
+        第一组：薄弱知识点
+       ========================= */}
+    <div className="mastery-group weak">
+
+      <button
+        type="button"
+        className="mastery-group-header"
+        onClick={() => toggleMasteryGroup('weak')}
+      >
+        <div className="mastery-group-title">
+          <span className="mastery-status-dot"></span>
+
+          <div>
+            <strong>薄弱知识点</strong>
+            <small>掌握度低于 60%</small>
+          </div>
+        </div>
+
+        <div className="mastery-group-right">
+          <span>{masteryGroups.weak.length} 个</span>
+          <span className="mastery-arrow">
+            {expandedMasteryGroups.weak ? '⌄' : '›'}
+          </span>
+        </div>
+      </button>
+
+      {expandedMasteryGroups.weak && (
+        <div className="mastery-tags">
+          {masteryGroups.weak.length > 0 ? (
+            masteryGroups.weak.map(item => (
+              <button
+                type="button"
+                key={item.topic}
+                className={
+                  'mastery-tag weak ' +
+                  (filters.includes(item.topic) ? 'selected' : '')
+                }
+                onClick={() => handleTagClick(item.topic)}
+              >
+                <span>{item.topic}</span>
+
+                <strong>
+                  {item.score !== null
+                    ? `${item.score}%`
+                    : '暂无评分'}
+                </strong>
+              </button>
+            ))
+          ) : (
+            <div className="mastery-empty">
+              暂无薄弱知识点 🎉
+            </div>
           )}
         </div>
       )}
 
-      {/* 筛选提示 */}
-      {/* 筛选提示 */}
+    </div>
 
+
+    {/* =========================
+        第二组：待巩固
+       ========================= */}
+    <div className="mastery-group consolidating">
+
+      <button
+        type="button"
+        className="mastery-group-header"
+        onClick={() => toggleMasteryGroup('consolidating')}
+      >
+        <div className="mastery-group-title">
+          <span className="mastery-status-dot"></span>
+
+          <div>
+            <strong>待巩固</strong>
+            <small>掌握度 60% - 79%</small>
+          </div>
+        </div>
+
+        <div className="mastery-group-right">
+          <span>{masteryGroups.consolidating.length} 个</span>
+          <span className="mastery-arrow">
+            {expandedMasteryGroups.consolidating ? '⌄' : '›'}
+          </span>
+        </div>
+      </button>
+
+      {expandedMasteryGroups.consolidating && (
+        <div className="mastery-tags">
+          {masteryGroups.consolidating.length > 0 ? (
+            masteryGroups.consolidating.map(item => (
+              <button
+                type="button"
+                key={item.topic}
+                className={
+                  'mastery-tag consolidating ' +
+                  (filters.includes(item.topic) ? 'selected' : '')
+                }
+                onClick={() => handleTagClick(item.topic)}
+              >
+                <span>{item.topic}</span>
+                <strong>{item.score}%</strong>
+              </button>
+            ))
+          ) : (
+            <div className="mastery-empty">
+              暂无待巩固知识点
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+
+
+    {/* =========================
+        第三组：已掌握
+       ========================= */}
+    <div className="mastery-group mastered">
+
+      <button
+        type="button"
+        className="mastery-group-header"
+        onClick={() => toggleMasteryGroup('mastered')}
+      >
+        <div className="mastery-group-title">
+          <span className="mastery-status-dot"></span>
+
+          <div>
+            <strong>已掌握</strong>
+            <small>掌握度 80% 及以上</small>
+          </div>
+        </div>
+
+        <div className="mastery-group-right">
+          <span>{masteryGroups.mastered.length} 个</span>
+          <span className="mastery-arrow">
+            {expandedMasteryGroups.mastered ? '⌄' : '›'}
+          </span>
+        </div>
+      </button>
+
+      {expandedMasteryGroups.mastered && (
+        <div className="mastery-tags">
+          {masteryGroups.mastered.length > 0 ? (
+            masteryGroups.mastered.map(item => (
+              <button
+                type="button"
+                key={item.topic}
+                className={
+                  'mastery-tag mastered ' +
+                  (filters.includes(item.topic) ? 'selected' : '')
+                }
+                onClick={() => handleTagClick(item.topic)}
+              >
+                <span>{item.topic}</span>
+                <strong>{item.score}%</strong>
+              </button>
+            ))
+          ) : (
+            <div className="mastery-empty">
+              暂无已掌握知识点
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+
+  </section>
+)}
 
       <div className="wrong-list">
         {loading ? (
