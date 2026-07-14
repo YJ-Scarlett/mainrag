@@ -290,3 +290,166 @@
     max-width: 100%;
   }
 }
+/* =========================================================
+   学情分析：知识点分类切换 + 柱状图整行点击
+   ========================================================= */
+
+
+/* 面板顶部 */
+.mastery-panel-head {
+  margin-bottom: 14px;
+}
+
+
+/* 分类切换区域 */
+.mastery-filter-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+
+/* 分类按钮 */
+.mastery-filter-tabs button {
+  border: 1px solid #e2e6ef;
+  background: #f7f8fb;
+  color: #687286;
+  border-radius: 20px;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+
+.mastery-filter-tabs button:hover {
+  border-color: #aebbf3;
+  background: #f1f4ff;
+  color: #5577ee;
+}
+
+
+/* 数量 */
+.mastery-filter-tabs button span {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #e9edf5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+
+/* 当前选中的分类 */
+.mastery-filter-tabs button.active {
+  color: #ffffff;
+  background: #5577ee;
+  border-color: #5577ee;
+  box-shadow: 0 4px 12px rgba(85, 119, 238, 0.2);
+}
+
+
+.mastery-filter-tabs button.active span {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+
+/* 薄弱分类未选中时 */
+.mastery-filter-tabs button.weak:not(.active) {
+  color: #c6535c;
+  background: #fff5f6;
+}
+
+
+/* 待巩固分类未选中时 */
+.mastery-filter-tabs button.consolidating:not(.active) {
+  color: #a97925;
+  background: #fff9ec;
+}
+
+
+/* 已掌握分类未选中时 */
+.mastery-filter-tabs button.mastered:not(.active) {
+  color: #338b69;
+  background: #eef9f5;
+}
+
+
+/* 图表区域 */
+.mastery-chart {
+  position: relative;
+  min-height: 260px;
+  transition: height 0.25s ease;
+}
+
+
+/* 当前分类没有知识点 */
+.mastery-chart-empty {
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9aa3b2;
+  font-size: 13px;
+}
+
+
+/* Tooltip */
+.mastery-chart-tooltip {
+  min-width: 190px;
+  padding: 11px 13px;
+  background: #ffffff;
+  border: 1px solid #e3e7ef;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(35, 48, 78, 0.13);
+}
+
+
+.mastery-chart-tooltip strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #263043;
+  font-size: 13px;
+}
+
+
+.mastery-chart-tooltip > span {
+  display: block;
+  color: #7b8496;
+  font-size: 12px;
+}
+
+
+.mastery-chart-tooltip > span b {
+  color: #5577ee;
+  margin-left: 3px;
+}
+
+
+.mastery-chart-tooltip small {
+  display: block;
+  margin-top: 7px;
+  color: #8e98a9;
+  font-size: 11px;
+}
+
+
+/* 手机端 */
+@media (max-width: 768px) {
+
+  .mastery-filter-tabs {
+    gap: 6px;
+  }
+
+  .mastery-filter-tabs button {
+    padding: 6px 10px;
+  }
+}

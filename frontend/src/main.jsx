@@ -648,18 +648,216 @@ function Knowledge({ user }) {
     </section>}
   </>
 }
-function Analysis({role}){
+function Analysis({ role }) {
   const [data, setData] = useState(null);
+
+  // 当前选中的知识点掌握度分类
+  // all：全部
+  // weak：薄弱
+  // consolidating：待巩固
+  // mastered：已掌握
+  const [masteryFilter, setMasteryFilter] = useState('all');
+
+  // 当前鼠标悬停的知识点，用于整行高亮
+  const [hoveredTopic, setHoveredTopic] = useState('');
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('mainrag-user'));
+
     const url = role === 'teacher'
       ? '/analysis/class'
       : `/analysis/student?student=${encodeURIComponent(user.name)}`;
+
     request(url)
       .then(setData)
-      .catch(() => setData({ summary: {}, mastery: [], trend: [], students: [], suggestion: '学情数据暂时无法加载，请稍后再试。' }));
+      .catch(() =>
+        setData({
+          summary: {},
+          mastery: [],
+          trend: [],
+          students: [],
+          suggestion: '学情数据暂时无法加载，请稍后再试。'
+        })
+      );
   }, [role]);
-  const mastery = data?.mastery || [], summary = data?.summary || {}, students = data?.students || [];
+
+  const mastery = data?.mastery || [];
+  const summary = data?.summary || {};
+  const students = data?.students || [];
+const masteryGroups = useMemo(() => {
+  return {
+    all: mastery,
+    weak: mastery.filter(item => item.score < 60),
+consolidating: mastery.filter(
+      item => item.score >= 60 && item.score < 80
+    ),
+
+    mastered: mastery.filter(item => item.score >= 80),
+  };
+}, [mastery]);
+
+const visibleMastery = useMemo(() => {
+  return [...(masteryGroups[masteryFilter] || [])]
+    .sort((a, b) => a.score - b.score);
+}, [masteryGroups, masteryFilter]);
+// 点击知识点后跳转到对应错题
+const goToTopicWrongbook = (topic) => {
+  if (!topic || role === 'teacher') {
+    return;
+  }
+
+  location.assign(
+    `/student/wrongbook?knowledge=${encodeURIComponent(topic)}`
+  );
+};
+// 自定义 Y 轴知识点文字
+// 学生端点击名称可以直接进入对应错题本
+const renderMasteryTick = ({
+  x,
+  y,
+  payload,
+}) => {
+  const topic = payload?.value;
+
+  return (
+    <g
+      transform={`translate(${x},${y})`}
+      onClick={() => goToTopicWrongbook(topic)}
+      onMouseEnter={() => setHoveredTopic(topic)}
+      onMouseLeave={() => setHoveredTopic('')}
+      style={{
+        cursor: role === 'student'
+          ? 'pointer'
+          : 'default',
+      }}
+    >
+      <text
+        x={-10}
+        y={0}
+        dy={4}
+        textAnchor="end"
+        fill={
+          hoveredTopic === topic
+            ? '#5577ee'
+            : '#4b5568'
+        }
+        fontSize={12}
+        fontWeight={
+          hoveredTopic === topic
+            ? 600
+            : 400
+        }
+      >
+        {topic}
+      </text>
+    </g>
+  );
+};
+// 自定义柱状图提示框
+const renderMasteryTooltip = ({
+  active,
+  payload,
+}) => {
+  if (!active || !payload?.length) {
+    return null;
+  }
+ const scoreItem = payload.find(
+    item => item.dataKey === 'score'
+  );
+
+  const item =
+    scoreItem?.payload ||
+    payload[0]?.payload;
+
+  if (!item) {
+    return null;
+  }
+
+  return (
+    <div className="mastery-chart-tooltip">
+      <strong>{item.topic}</strong>
+
+      <span>
+        掌握度：
+        <b>{item.score}%</b>
+      </span>
+
+      {role === 'student' && (
+        <small>
+          点击这一行查看相关错题 →
+        </small>
+      )}
+    </div>
+  );
+};
+// 自定义柱状图整行背景
+// 作用：
+// 1. 鼠标悬停整行时显示浅蓝色背景
+// 2. 点击柱子后方的空白区域也可以跳转错题本
+const renderMasteryRowBackground = (props) => {
+  const {
+    x = 0,
+    y = 0,
+    width = 0,
+    height = 0,
+    index = 0,
+    payload,
+  } = props;
+
+  // 优先从 payload 获取知识点；
+  // 若当前 Recharts 版本没有提供 payload，则根据 index 从 visibleMastery 获取
+  const topic =
+    payload?.topic ||
+    visibleMastery[index]?.topic ||
+    '';
+
+  // 当前行是否处于鼠标悬停状态
+  const isHovered = hoveredTopic === topic;
+
+  return (
+    <rect
+      x={x}
+      y={y - 7}
+      width={width}
+      height={height + 14}
+      rx={8}
+      ry={8}
+
+      // 鼠标悬停时显示浅蓝背景
+      fill={
+        isHovered
+          ? '#f3f6ff'
+          : 'transparent'
+      }
+
+      // 鼠标进入整行
+      onMouseEnter={() => {
+        if (topic) {
+          setHoveredTopic(topic);
+        }
+      }}
+
+      // 鼠标离开整行
+      onMouseLeave={() => {
+        setHoveredTopic('');
+      }}
+
+      // 点击整行空白区域，跳转对应知识点的错题本
+      onClick={() => {
+        goToTopicWrongbook(topic);
+      }}
+
+      style={{
+        cursor:
+          role === 'student'
+            ? 'pointer'
+            : 'default',
+
+        transition: 'fill 0.2s ease',
+      }}
+    />
+  );
+};
   return <>
     <section className="analysis-title">
       <div>
@@ -675,34 +873,183 @@ function Analysis({role}){
       <Stat icon={Database} label="课程资料" value={summary.documents||0} detail="可供检索" tone="orange"/>
     </div>
     <div className="analysis-grid">
-      <section className="panel">
-        <div className="panel-head">
-          <div><h3>知识点掌握度</h3><p>按学习活动综合评估</p></div>
-        </div>
-        <div className="chart">
-          <ResponsiveContainer>
-            <BarChart data={mastery} layout="vertical" margin={{left:20,right:30}}>
-              <CartesianGrid stroke="#eef1f7" horizontal={false}/>
-              <XAxis type="number" domain={[0, 100]} axisLine={false} />
-              <YAxis type="category" dataKey="topic" width={120} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-              <Tooltip/>
-              <Bar
-                dataKey="score"
-                fill="#627eea"
-                radius={[0,8,8,0]}
-                barSize={20}
-                minPointSize={8}
-                onClick={(data) => {
-                  const topic = data?.topic || data?.payload?.topic || data?.[0]?.payload?.topic;
-                  if (topic) {
-                    location.assign(`/student/wrongbook?knowledge=${encodeURIComponent(topic)}`);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <section className="panel mastery-chart-panel">
+
+  <div className="panel-head mastery-panel-head">
+
+    <div>
+      <h3>知识点掌握度</h3>
+
+      <p>
+        按学习活动综合评估
+        {role === 'student' && ' · 点击知识点查看相关错题'}
+      </p>
+    </div>
+
+  </div>
+
+
+  {/* 掌握度分类切换 */}
+  <div className="mastery-filter-tabs">
+
+    <button
+      type="button"
+      className={masteryFilter === 'all' ? 'active' : ''}
+      onClick={() => setMasteryFilter('all')}
+    >
+      全部
+      <span>{masteryGroups.all.length}</span>
+    </button>
+
+
+    <button
+      type="button"
+      className={masteryFilter === 'weak' ? 'active weak' : 'weak'}
+      onClick={() => setMasteryFilter('weak')}
+    >
+      薄弱
+      <span>{masteryGroups.weak.length}</span>
+    </button>
+
+
+    <button
+      type="button"
+      className={
+        masteryFilter === 'consolidating'
+          ? 'active consolidating'
+          : 'consolidating'
+      }
+      onClick={() =>
+        setMasteryFilter('consolidating')
+      }
+    >
+      待巩固
+      <span>{masteryGroups.consolidating.length}</span>
+    </button>
+
+
+    <button
+      type="button"
+      className={
+        masteryFilter === 'mastered'
+          ? 'active mastered'
+          : 'mastered'
+      }
+      onClick={() => setMasteryFilter('mastered')}
+    >
+      已掌握
+      <span>{masteryGroups.mastered.length}</span>
+    </button>
+
+  </div>
+       <div
+  className="chart mastery-chart"
+  style={{
+    height: Math.max(
+      260,
+      visibleMastery.length * 46 + 50
+    ),
+  }}
+>
+
+  {visibleMastery.length === 0 ? (
+
+    <div className="mastery-chart-empty">
+      当前分类暂无知识点
+    </div>
+
+  ) : (
+
+    <ResponsiveContainer>
+
+      <BarChart
+        data={visibleMastery}
+        layout="vertical"
+        margin={{
+          left: 30,
+          right: 40,
+          top: 8,
+          bottom: 8,
+        }}
+        barCategoryGap="25%"
+      >
+
+        <CartesianGrid
+          stroke="#eef1f7"
+          horizontal={false}
+        />
+
+
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          axisLine={false}
+          tickLine={false}
+        />
+
+
+        <YAxis
+          type="category"
+          dataKey="topic"
+          width={190}
+          axisLine={false}
+          tickLine={false}
+          tick={renderMasteryTick}
+          interval={0}
+        />
+
+
+        <Tooltip
+          content={renderMasteryTooltip}
+          cursor={false}
+        />
+
+
+        <Bar
+          dataKey="score"
+          fill="#627eea"
+          radius={[0, 8, 8, 0]}
+          barSize={20}
+          minPointSize={8}
+
+          background={renderMasteryRowBackground}
+
+          onMouseEnter={(data) => {
+            const topic =
+              data?.topic ||
+              data?.payload?.topic;
+
+            if (topic) {
+              setHoveredTopic(topic);
+            }
+          }}
+
+          onMouseLeave={() => {
+            setHoveredTopic('');
+          }}
+
+          onClick={(data) => {
+            const topic =
+              data?.topic ||
+              data?.payload?.topic;
+
+            goToTopicWrongbook(topic);
+          }}
+
+          style={{
+            cursor: role === 'student'
+              ? 'pointer'
+              : 'default',
+          }}
+        />
+
+      </BarChart>
+
+    </ResponsiveContainer>
+
+  )}
+
+</div>
       </section>
       <section className="panel insight">
         <div className="insight-icon"><Sparkles/></div>
