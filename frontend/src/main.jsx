@@ -579,13 +579,17 @@ function Knowledge({ user }) {
   </>
 }
 function Analysis({role}){
-  const [data,setData]=useState(null);
-  useEffect(()=>{
-    request(role==='teacher'?'/analysis/class':'/analysis/student')
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('mainrag-user'));
+    const url = role === 'teacher'
+      ? '/analysis/class'
+      : `/analysis/student?student=${encodeURIComponent(user.name)}`;
+    request(url)
       .then(setData)
-      .catch(()=>setData({summary:{},mastery:[],trend:[],students:[],suggestion:'学情数据暂时无法加载，请稍后再试。'}));
-  },[role]);
-  const mastery=data?.mastery||[], summary=data?.summary||{}, students=data?.students||[];
+      .catch(() => setData({ summary: {}, mastery: [], trend: [], students: [], suggestion: '学情数据暂时无法加载，请稍后再试。' }));
+  }, [role]);
+  const mastery = data?.mastery || [], summary = data?.summary || {}, students = data?.students || [];
   return <>
     <section className="analysis-title">
       <div>
@@ -954,16 +958,16 @@ function Wrongbook({ user }) {
 
   // 加载错题和学情数据
   const loadData = () => {
-    setLoading(true);
-    Promise.all([
-      request(`/exams/student/wrongbook?student=${encodeURIComponent(user.name)}`),
-      request('/analysis/student')
-    ]).then(([wrongRes, analysisRes]) => {
-      setItems(wrongRes.items || []);
-      setMastery(analysisRes.mastery || []);
-    }).catch(() => { })
-      .finally(() => setLoading(false));
-  };
+  setLoading(true);
+  Promise.all([
+    request(`/exams/student/wrongbook?student=${encodeURIComponent(user.name)}`),
+    request(`/analysis/student?student=${encodeURIComponent(user.name)}`)
+  ]).then(([wrongRes, analysisRes]) => {
+    setItems(wrongRes.items || []);
+    setMastery(analysisRes.mastery || []);
+  }).catch(() => { })
+    .finally(() => setLoading(false));
+};
 
   useEffect(() => {
     loadData();
