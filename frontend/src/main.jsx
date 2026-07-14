@@ -393,40 +393,61 @@ function Chat({user}){
   const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
   const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
-  const openSource=s=>{if(!s?.document_id)return;const params=new URLSearchParams({doc:s.document_id,page:String(s.page||''),chunk:String(s.chunk||'')});if(s.start_time!==undefined&&s.start_time!==null)params.set('start',String(s.start_time));if(s.end_time!==undefined&&s.end_time!==null)params.set('end',String(s.end_time));location.assign(`/${user.role}/knowledge?${params.toString()}`)};
-  const send=async(q=input)=>{
-    if(!q.trim()||loading)return;
-    const question=q.trim();
+  const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
+  const send = async (q = input) => {
+    if (!q.trim() || loading) return;
+    const question = q.trim();
     setActiveHistory('');
-    setMessages(m=>[...m,{role:'user',text:question},{role:'ai',text:'',sources:[],streaming:true}]);
+    setMessages(m => [...m, { role: 'user', text: question }, { role: 'ai', text: '', sources: [], streaming: true }]);
     setInput('');
-    setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null});
+    setPhotoPreview(old => { if (old?.url) URL.revokeObjectURL(old.url); return null });
     setLoading(true);
-    try{
-      let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
-      const response=await fetch(API+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',...(role?{'X-Role':role}:{})},body:JSON.stringify({message:question,student:user.name})});
-      if(!response.ok){let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}throw new Error(data.detail||'请求失败')}
-      const reader=response.body.getReader();
-      const decoder=new TextDecoder('utf-8');
-      let buffer='';
-      while(true){
-        const {value,done}=await reader.read();
-        if(done)break;
-        buffer+=decoder.decode(value,{stream:true});
-        const events=buffer.split('\n\n');
-        buffer=events.pop()||'';
-        for(const raw of events){
-          const line=raw.split('\n').find(x=>x.startsWith('data:'));
-          if(!line)continue;
-          const event=JSON.parse(line.slice(5).trim());
-          if(event.type==='delta')appendToLastAi({append:event.content,streaming:true});
-          if(event.type==='sources')appendToLastAi({sources:event.sources||[]});
-          if(event.type==='done')appendToLastAi({text:event.answer,sources:event.sources||[],streaming:false});
+    try {
+      let role = '';
+      try { role = JSON.parse(localStorage.getItem('mainrag-user'))?.role || '' } catch { }
+      const response = await fetch(API + '/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(role ? { 'X-Role': role } : {}) },
+        body: JSON.stringify({ message: question, student: user.name })
+      });
+      if (!response.ok) {
+        let data = {};
+        try { data = await response.json() } catch { data = { detail: await response.text().catch(() => '') } }
+        throw new Error(data.detail || '请求失败');
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const raw of events) {
+          const line = raw.split('\n').find(x => x.startsWith('data:'));
+          if (!line) continue;
+          const jsonStr = line.slice(5).trim();
+          if (jsonStr === '[DONE]') continue;
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === 'delta') appendToLastAi({ append: event.content, streaming: true });
+            if (event.type === 'sources') appendToLastAi({ sources: event.sources || [] });
+            if (event.type === 'done') {
+              appendToLastAi({ text: event.answer, sources: event.sources || [], streaming: false });
+            }
+          } catch (e) {
+            console.warn('解析流式事件失败:', jsonStr);
+          }
         }
       }
       loadHistory();
-    }catch(e){appendToLastAi({text:e.message,streaming:false})}
-    finally{setLoading(false)}
+    } catch (e) {
+      console.error('流式请求失败:', e);
+      appendToLastAi({ text: '回答生成中断，请稍后重试。', streaming: false });
+    } finally {
+      setLoading(false);
+    }
   };
   const photoSearch=async(e)=>{
     const file=e.target.files?.[0];
