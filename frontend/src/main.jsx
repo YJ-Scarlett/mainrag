@@ -221,9 +221,12 @@ function Dashboard({user, go}) {
   const [data, setData] = useState(null);
   
   useEffect(() => {
-    request(role === 'teacher' ? '/analysis/class' : '/analysis/student')
-      .then(setData);
-  }, [role]);
+  const url = role === 'teacher' 
+    ? '/analysis/class' 
+    : `/analysis/student?student=${encodeURIComponent(user.name)}`;
+  request(url)
+    .then(setData);
+}, [role, user.name]);
   
   const s = data?.summary || {};
   
@@ -614,7 +617,7 @@ function Analysis({role}){
             <BarChart data={mastery} layout="vertical" margin={{left:20,right:30}}>
               <CartesianGrid stroke="#eef1f7" horizontal={false}/>
               <XAxis type="number" domain={[0, 100]} axisLine={false} />
-              <YAxis type="category" dataKey="topic" width={90} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="topic" width={120} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
               <Tooltip/>
               <Bar
                 dataKey="score"
@@ -1137,7 +1140,14 @@ function Wrongbook({ user }) {
               <div className="wrong-meta">
                 <span>{q.exam_title}</span>
               </div>
-              <h3>{i + 1}. {q.question}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', margin: '8px 0' }}>
+                <h3 style={{ margin: 0, fontSize: '13px', lineHeight: '1.7' }}>{i + 1}. {q.question}</h3>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', flexShrink: 0 }}>
+                  {getQuestionKnowledgePoints(q).map(point => (
+                    <span key={point} className="knowledge-tag-blue">{point}</span>
+                  ))}
+                </div>
+              </div>
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
               <p className="right-answer">正确答案：{q.answer}</p>
               <div className="explanation"><Sparkles /> {q.analysis}</div>
