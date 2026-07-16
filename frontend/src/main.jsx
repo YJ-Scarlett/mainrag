@@ -1841,6 +1841,14 @@ const toggleMasteryGroup = (groupName) => {
                   ))}
                 </div>
               </div>
+              {/* 原题选项列表 */}
+              {q.options && q.options.length > 0 && (
+                <div className="wrong-options" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '8px 0 12px 0' }}>
+                  {q.options.map((opt, idx) => (
+                    <span key={idx} style={{ fontSize: '13px' }}>{opt}</span>
+                  ))}
+                </div>
+              )}
               <p className="your-answer">你的答案：{q.student_answer || '未作答'}</p>
               <p className="right-answer">正确答案：{q.answer}</p>
               <div className="explanation"><Sparkles /> {q.analysis}</div>
