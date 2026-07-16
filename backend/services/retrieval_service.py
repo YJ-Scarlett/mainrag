@@ -19,6 +19,9 @@ TERM_EXPANSIONS = {
     "\u7f16\u8bd1\u5668": ["compiler"],
     "\u8bed\u6cd5\u5206\u6790\u5668": ["parser", "syntax analyzer"],
     "\u8bcd\u6cd5\u5206\u6790\u5668": ["lexical analyzer", "lexer", "scanner"],
+    "\u6b63\u5219\u8868\u8fbe\u5f0f": ["regular expression", "\u6b63\u5219\u5f0f", "\u6b63\u5219\u96c6", "\u7b49\u4ef7"],
+    "\u6b63\u5219\u5f0f": ["regular expression", "\u6b63\u5219\u8868\u8fbe\u5f0f", "\u6b63\u5219\u96c6", "\u7b49\u4ef7"],
+    "\u4e00\u4e2a\u8bed\u8a00": ["\u540c\u4e00\u4e2a\u8bed\u8a00", "\u540c\u4e00\u8bed\u8a00", "\u591a\u4e2a\u6b63\u5219\u8868\u8fbe\u5f0f", "\u6b63\u5219\u8868\u8fbe\u5f0f\u7684\u7b49\u4ef7"],
 }
 
 
@@ -244,9 +247,42 @@ async def retrieve(query: str, top_k: int = 5) -> list[dict]:
                 score += 0.12
             if "ip src" in normalized_content or "client ip address" in normalized_content:
                 score -= 0.18
-        row["score"] = round(max(0.0, score), 4)
-    rows.sort(key=lambda row: row["score"], reverse=True)
-    return rows[:top_k]
+        regex_question = (
+            "\u6b63\u5219\u8868\u8fbe\u5f0f" in query
+            or "\u6b63\u5219\u5f0f" in query
+            or ("regular" in normalized_query and "expression" in normalized_query)
+        )
+        if regex_question and ("\u4e00\u4e2a\u8bed\u8a00" in query or "\u540c\u4e00\u4e2a\u8bed\u8a00" in query or "\u8868\u793a" in query):
+            if "\u6b63\u5219\u8868\u8fbe\u5f0f\u7684\u7b49\u4ef7" in content:
+                score += 0.42
+            if "\u6240\u8868\u793a\u7684\u6b63\u5219\u96c6\u76f8\u540c" in content or "\u7b49\u4ef7" in content:
+                score += 0.28
+            if "\u540c\u4e00\u4e2a\u8bed\u8a00\u53ef\u4ee5\u7528\u591a\u4e2a\u6b63\u5219\u8868\u8fbe\u5f0f\u8868\u793a" in content:
+                score += 0.35
+            if "\u4e00\u4e2a\u8bed\u8a00\u53ea\u80fd\u7528\u4e00\u4e2a\u6b63\u5219\u8868\u8fbe\u5f0f" in content:
+                score += 0.18
+        row["_rank_score"] = max(0.0, score)
+        row["score"] = round(min(1.0, row["_rank_score"]), 4)
+    rows.sort(key=lambda row: row.get("_rank_score", row["score"]), reverse=True)
+    for row in rows:
+        row.pop("_rank_score", None)
+    unique_rows: list[dict] = []
+    seen_locations: set[tuple] = set()
+    for row in rows:
+        location_key = (
+            row.get("document_id"),
+            row.get("page"),
+            round(float(row.get("start_time") or 0), 1) if row.get("start_time") is not None else None,
+            round(float(row.get("end_time") or 0), 1) if row.get("end_time") is not None else None,
+            (row.get("content") or "")[:80],
+        )
+        if location_key in seen_locations:
+            continue
+        seen_locations.add(location_key)
+        unique_rows.append(row)
+        if len(unique_rows) >= top_k:
+            break
+    return unique_rows
 
 
 def keyword_retrieve(query: str, top_k: int = 5) -> list[dict]:

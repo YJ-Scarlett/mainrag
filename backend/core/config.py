@@ -21,6 +21,10 @@ class Settings:
     deepseek_model: str = field(default_factory=lambda: os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
     local_embedding_model: str = field(default_factory=lambda: os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-m3").strip())
     embedding_device: str = field(default_factory=lambda: os.getenv("EMBEDDING_DEVICE", "").strip())
+    local_speech_model: str = field(
+        default_factory=lambda: os.getenv("LOCAL_SPEECH_MODEL", "openai/whisper-small").strip()
+    )
+    speech_language: str = field(default_factory=lambda: os.getenv("SPEECH_LANGUAGE", "zh").strip())
     # 修改为 D 盘缓存目录
     embedding_cache_dir: Path = Path("D:/huggingface_cache")
     preview_timeout_seconds: int = field(default_factory=lambda: int(os.getenv("PREVIEW_TIMEOUT_SECONDS", "240")))

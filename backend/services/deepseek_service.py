@@ -10,6 +10,8 @@ def _build_payload(question: str, references: list[dict], stream: bool = False) 
     def label(item: dict) -> str:
         if item.get("start_time") is not None and item.get("end_time") is not None:
             return f"资料：{item['document']}，时间 {item['start_time']:.1f}s-{item['end_time']:.1f}s"
+        if item.get("page"):
+            return f"资料：{item['document']}，第 {item['page']} 页，片段 {item['chunk']}"
         return f"资料：{item['document']}，片段 {item['chunk']}"
 
     context = "\n\n".join(
@@ -25,6 +27,7 @@ def _build_payload(question: str, references: list[dict], stream: bool = False) 
                 "content": (
                     "你是课程助教。只基于提供的知识库片段回答；资料不足时明确说明，不得编造。"
                     "回答要准确、易懂，并尽量使用 Markdown 格式：重点内容用 **加粗**，步骤、分类和结论用有序列表。"
+                    "如果某一句或某一段依据了特定资料，请在该句中保留资料标签中的页码或片段号，方便系统把角标绑定到正确来源。"
                     "不要在正文末尾重复输出“参考资料”“参考来源”等来源列表，系统会在回答下方单独展示可追溯来源标签。"
                 ),
             },

@@ -12,6 +12,7 @@ import UploadCloud from './assets/illustrations/upload-cloud.svg';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const requestCache=new Map();
+function apiAssetUrl(path){if(!path)return '';if(/^(https?:|blob:|data:)/.test(path))return path;const base=API.endsWith('/api')?API.slice(0,-4):API.replace(/\/api\/?$/,'');return path.startsWith('/api')?base+path:API+path}
 async function request(path, options={}) { const {cache=true,...fetchOptions}=options;let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const method=(fetchOptions.method||'GET').toUpperCase();const cacheKey=`${role}:${path}`;if(method==='GET'&&cache&&requestCache.has(cacheKey)){const item=requestCache.get(cacheKey);if(Date.now()-item.time<10000)return item.data}const headers={...(fetchOptions.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...fetchOptions,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); if(method==='GET'&&cache)requestCache.set(cacheKey,{time:Date.now(),data}); return data; }
 const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
@@ -369,6 +370,31 @@ function SourceSups({items=[],onSourceClick}){
   if(!items.length)return null;
   return <span className="source-sup-group">{items.map(({source,index})=><SourceSup key={index} source={source} index={index} onSourceClick={onSourceClick}/>)}</span>
 }
+function sourceRefsForText(text,sources=[]){
+  const raw=String(text||'');
+  if(!raw.trim()||!sources.length)return [];
+  const compact=raw.replace(/\s+/g,'');
+  const refs=[];
+  sources.forEach((source,index)=>{
+    let matched=false;
+    const chunk=source?.chunk!==undefined&&source?.chunk!==null?String(source.chunk):'';
+    const page=source?.page!==undefined&&source?.page!==null?String(source.page):'';
+    const doc=source?.document?String(source.document):'';
+    if(chunk){
+      const chunkPattern=new RegExp(`(?:片段|chunk|Chunk)[：:\\s\\[]*${chunk}(?!\\d)`);
+      matched=chunkPattern.test(raw)||compact.includes(`片段${chunk}`);
+    }
+    if(!matched&&page){
+      const pagePattern=new RegExp(`第\\s*${page}\\s*页|${page}\\s*页`);
+      matched=pagePattern.test(raw)||compact.includes(`第${page}页`);
+    }
+    if(!matched&&doc&&raw.includes(doc)&&(chunk||page)){
+      matched=(chunk&&raw.includes(chunk))||(page&&raw.includes(page));
+    }
+    if(matched)refs.push({source,index});
+  });
+  return refs;
+}
 function MarkdownText({text,sources=[],onSourceClick}){
   const cleanText=String(text||'').replace(/\n?\s*(参考资料|参考来源|资料来源|来源)\s*[:：][\s\S]*$/,'');
   const lines=cleanText.split('\n');
@@ -407,18 +433,15 @@ function MarkdownText({text,sources=[],onSourceClick}){
     while(i<lines.length&&lines[i].trim()&&!/^\s*\d+[.)、]\s+/.test(lines[i])&&!/^\s*[-*]\s+/.test(lines[i])&&!/^\s*#{1,3}\s+/.test(lines[i])){paragraph.push(lines[i]);i++}
     parsed.push({type:'p',text:paragraph.join('\n')});
   }
-  const citeTargets=parsed.map((block,index)=>block.type==='heading'?null:index).filter(index=>index!==null);
   const groups=parsed.map(()=>[]);
-  if(citeTargets.length&&sources.length){
-    sources.forEach((source,index)=>{
-      const target=citeTargets[Math.min(index,citeTargets.length-1)];
-      groups[target].push({source,index});
-    });
-  }
+  parsed.forEach((block,index)=>{
+    const blockText=block.type==='ol'||block.type==='ul'?block.items.join('\n'):block.text||'';
+    groups[index]=sourceRefsForText(blockText,sources);
+  });
   const blocks=parsed.map((block,index)=>{
     const cites=<SourceSups items={groups[index]} onSourceClick={onSourceClick}/>;
-    if(block.type==='ol')return <React.Fragment key={index}><ol>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>{cites}</React.Fragment>;
-    if(block.type==='ul')return <React.Fragment key={index}><ul>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>{cites}</React.Fragment>;
+    if(block.type==='ol')return <ol key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ol>;
+    if(block.type==='ul')return <ul key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ul>;
     if(block.type==='heading')return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
     return <p key={index}>{renderInlineMarkdown(block.text)}{cites}</p>;
   });
@@ -453,9 +476,9 @@ function Chat({user}){
   const [pendingDeleteItem,setPendingDeleteItem]=useState(null);
   const photoInputRef=useRef(null);
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
-  const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
+  const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`,{cache:false}).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(() => { loadHistory(); }, [user.name]);
-  const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
+  const openHistory=item=>{const isPhoto=item.kind==='photo_search'||item.image_url||item.ocr_text||String(item.question||'').startsWith('拍照搜题');const ocrText=item.ocr_text||(isPhoto?String(item.question||'').replace(/^拍照搜题：\n?/,''):'');setActiveHistory(item.id);setMessages([welcome,{role:'user',text:isPhoto?'拍照搜题':item.question,image:apiAssetUrl(item.image_url),ocrText},{role:'ai',text:item.answer,sources:item.sources||[]}])};
   const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
   const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
@@ -470,6 +493,14 @@ function Chat({user}){
     setLoading(true);
     let pendingText = '';
     let updateTimer = null;
+    let streamDone = false;
+    let hasAnswerText = false;
+    const controller = new AbortController();
+    let stallTimer = null;
+    const resetStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => controller.abort(), 45000);
+    };
     const flushUpdate = () => {
       if (pendingText) {
         appendToLastAi({ append: pendingText, streaming: true });
@@ -485,10 +516,12 @@ function Chat({user}){
     try {
       let role = '';
       try { role = JSON.parse(localStorage.getItem('mainrag-user'))?.role || '' } catch { }
+      resetStallTimer();
       const response = await fetch(API + '/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(role ? { 'X-Role': role } : {}) },
-        body: JSON.stringify({ message: question, student: user.name })
+        body: JSON.stringify({ message: question, student: user.name }),
+        signal: controller.signal
       });
       if (!response.ok) {
         let data = {};
@@ -501,6 +534,7 @@ function Chat({user}){
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        resetStallTimer();
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split('\n\n');
         buffer = events.pop() || '';
@@ -513,10 +547,12 @@ function Chat({user}){
             const event = JSON.parse(jsonStr);
             if (event.type === 'delta') {
               pendingText += event.content || '';
+              if(event.content)hasAnswerText = true;
               scheduleUpdate();
             }
             if (event.type === 'sources') appendToLastAi({ sources: event.sources || [] });
             if (event.type === 'done') {
+              streamDone = true;
               // 强制刷新剩余内容
               if (updateTimer) clearTimeout(updateTimer);
               if (pendingText) {
@@ -535,12 +571,17 @@ function Chat({user}){
       if (pendingText) {
         appendToLastAi({ append: pendingText, streaming: true });
       }
+      if (!streamDone) {
+        appendToLastAi({ append: hasAnswerText ? '\n\n回答已停止等待，可以继续提问。' : '回答生成超时，请稍后重试。', streaming: false });
+      }
       loadHistory();
     } catch (e) {
       console.error('流式请求失败:', e);
       if (updateTimer) clearTimeout(updateTimer);
-      appendToLastAi({ text: '回答生成中断，请稍后重试。', streaming: false });
+      const message = e.name === 'AbortError' ? '回答生成超时，已停止等待，可以重新提问。' : '回答生成中断，请稍后重试。';
+      appendToLastAi(hasAnswerText ? { append: `\n\n${message}`, streaming: false } : { text: message, streaming: false });
     } finally {
+      if (stallTimer) clearTimeout(stallTimer);
       setLoading(false);
     }
   };
@@ -561,9 +602,10 @@ function Chat({user}){
       const response=await fetch(API+'/chat/photo-search',{method:'POST',headers:{...(role?{'X-Role':role}:{})},body:fd});
       let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}
       if(!response.ok)throw new Error(data.detail||'拍照搜题失败');
-      setPhotoPreview(old=>old?{...old,ocrText:data.ocr_text||'',status:'识别完成，可在输入框中修改题目文字'}:old);
-      setMessages(items=>items.map((m,i)=>i===items.length-2&&m.role==='user'?{...m,ocrText:data.ocr_text||''}:m));
-      appendToLastAi({text:`**识别题目：**\n${data.ocr_text}\n\n${data.answer}`,sources:data.sources||[],streaming:false});
+      const savedImage=apiAssetUrl(data.image_url)||previewUrl;
+      setPhotoPreview(old=>old?{...old,ocrText:data.ocr_text||'',status:'识别完成'}:old);
+      setMessages(items=>items.map((m,i)=>i===items.length-2&&m.role==='user'?{...m,image:savedImage,ocrText:data.ocr_text||''}:m));
+      appendToLastAi({text:data.answer,sources:data.sources||[],streaming:false});
       loadHistory();
     }catch(error){
       setPhotoPreview(old=>old?{...old,status:'识别失败',ocrText:error.message}:old);

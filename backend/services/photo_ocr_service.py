@@ -112,8 +112,7 @@ def clean_ocr_text(text: str) -> str:
     return "\n".join(rows).strip()
 
 
-async def extract_question_text(file: UploadFile) -> str:
-    image_path = await save_temp_image(file)
+def extract_question_text_from_path(image_path: Path, cleanup: bool = True) -> str:
     errors: list[str] = []
     try:
         for name, runner in (("PaddleOCR", _ocr_with_paddle), ("Tesseract OCR", _ocr_with_tesseract)):
@@ -134,7 +133,13 @@ async def extract_question_text(file: UploadFile) -> str:
         )
         raise HTTPException(503, detail)
     finally:
-        try:
-            image_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        if cleanup:
+            try:
+                image_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+async def extract_question_text(file: UploadFile) -> str:
+    image_path = await save_temp_image(file)
+    return extract_question_text_from_path(image_path, cleanup=True)
