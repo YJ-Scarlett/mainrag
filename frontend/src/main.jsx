@@ -449,14 +449,15 @@ function parseMediaCaptions(content=''){
 function Chat({user}){
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[photoLoading,setPhotoLoading]=useState(false),[photoPreview,setPhotoPreview]=useState(null),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
+  const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
+  const [pendingDeleteItem,setPendingDeleteItem]=useState(null);
   const photoInputRef=useRef(null);
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
   const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
-  useEffect(() => {
-  loadHistory();
-}, [user.name]);
+  useEffect(() => { loadHistory(); }, [user.name]);
   const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
-  const deleteHistory=async(e,item)=>{e.stopPropagation();if(!confirm('确定删除这条历史问答吗？'))return;await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}};
+  const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
+  const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
   const send = async (q = input) => {
@@ -467,6 +468,20 @@ function Chat({user}){
     setInput('');
     setPhotoPreview(old => { if (old?.url) URL.revokeObjectURL(old.url); return null });
     setLoading(true);
+    let pendingText = '';
+    let updateTimer = null;
+    const flushUpdate = () => {
+      if (pendingText) {
+        appendToLastAi({ append: pendingText, streaming: true });
+        pendingText = '';
+      }
+      updateTimer = null;
+    };
+    const scheduleUpdate = () => {
+      if (!updateTimer) {
+        updateTimer = setTimeout(flushUpdate, 30); // 每 30ms 刷新一次
+      }
+    };
     try {
       let role = '';
       try { role = JSON.parse(localStorage.getItem('mainrag-user'))?.role || '' } catch { }
@@ -496,9 +511,18 @@ function Chat({user}){
           if (jsonStr === '[DONE]') continue;
           try {
             const event = JSON.parse(jsonStr);
-            if (event.type === 'delta') appendToLastAi({ append: event.content, streaming: true });
+            if (event.type === 'delta') {
+              pendingText += event.content || '';
+              scheduleUpdate();
+            }
             if (event.type === 'sources') appendToLastAi({ sources: event.sources || [] });
             if (event.type === 'done') {
+              // 强制刷新剩余内容
+              if (updateTimer) clearTimeout(updateTimer);
+              if (pendingText) {
+                appendToLastAi({ append: pendingText, streaming: true });
+                pendingText = '';
+              }
               appendToLastAi({ text: event.answer, sources: event.sources || [], streaming: false });
             }
           } catch (e) {
@@ -506,9 +530,15 @@ function Chat({user}){
           }
         }
       }
+      // 循环结束后，确保所有内容都已渲染
+      if (updateTimer) clearTimeout(updateTimer);
+      if (pendingText) {
+        appendToLastAi({ append: pendingText, streaming: true });
+      }
       loadHistory();
     } catch (e) {
       console.error('流式请求失败:', e);
+      if (updateTimer) clearTimeout(updateTimer);
       appendToLastAi({ text: '回答生成中断，请稍后重试。', streaming: false });
     } finally {
       setLoading(false);
@@ -545,7 +575,19 @@ function Chat({user}){
       setPhotoLoading(false);
     }
   };
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside></div>
+  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside>
+  {showDeleteConfirm && (
+    <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteItem(null); }}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <p style={{ fontSize: 16, marginBottom: 20 }}>确定删除这条历史问答吗？</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button className="secondary" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteItem(null); }}>取消</button>
+          <button className="primary" onClick={confirmDeleteHistory}>确定</button>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
 }
 function Knowledge({ user }) {
   const isTeacher = user.role === 'teacher';
@@ -553,12 +595,12 @@ function Knowledge({ user }) {
   const [targetPage, setTargetPage] = useState('');
   const [targetTime, setTargetTime] = useState(null);
   const [activeCaption, setActiveCaption] = useState(-1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const mediaRef = useRef(null);
   const captionListRef = useRef(null);
   const load = (fresh = false) => request('/knowledge', { cache: !fresh }).then(d => setDocs(d.items));
-  useEffect(() => {
-  load();
-}, []);
+  useEffect(() => { load(); }, []);
   useEffect(() => { const params = new URLSearchParams(location.search); const target = params.get('doc'); const page = params.get('page') || ''; const start = params.get('start'); setTargetPage(page); setTargetTime(start !== null && start !== '' ? Number(start) : null); if (target) view(target, page) }, []);
   useEffect(() => { if (!docs.some(d => d.preview_status === 'processing')) return; const timer = setInterval(() => load(true), 3000); return () => clearInterval(timer) }, [docs]);
   useEffect(() => { if (!selected || selected.preview_status !== 'processing') return; const timer = setInterval(() => request('/knowledge/' + selected.id, { cache: false }).then(setSelected).catch(() => { }), 3000); return () => clearInterval(timer) }, [selected]);
@@ -570,7 +612,8 @@ function Knowledge({ user }) {
   const view = async (id, page = '') => { try { setTargetPage(page); setSelected(await request('/knowledge/' + id)) } catch (e) { setMsg(e.message) } };
   const download = d => { window.open(`${API}/knowledge/${d.id}/download`, '_blank') };
   const upload = e => { const file = e.target.files[0]; if (!file) return; e.target.value = ''; const isMedia = /\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name); setUploading(true); setProgress(0); setStage('正在上传文件'); setUploadName(file.name); setMsg(''); const fd = new FormData(); fd.append('file', file); fd.append('category', '课程资料'); const xhr = new XMLHttpRequest(); let timer; xhr.open('POST', API + '/knowledge/upload'); xhr.setRequestHeader('X-Role', 'teacher'); xhr.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 65)) }; xhr.upload.onload = () => { setProgress(p => Math.max(p, 66)); setStage(isMedia ? '正在转写音视频并建立向量索引' : '正在解析文档并建立向量索引'); timer = setInterval(() => setProgress(p => p < 94 ? p + 1 : p), 700) }; xhr.onload = () => { clearInterval(timer); let data = {}; try { data = JSON.parse(xhr.responseText) } catch { } if (xhr.status >= 200 && xhr.status < 300) { setProgress(100); setStage(isMedia ? '上传完成，音视频已转写入库' : '上传完成，预览后台处理中'); setMsg(data.message || (isMedia ? '上传成功，音视频已转写并可用于检索问答' : '上传成功，预览正在后台生成')); load(true); setTimeout(() => setUploading(false), 800) } else { setUploading(false); setMsg(data.detail || '上传处理失败') } }; xhr.onerror = () => { clearInterval(timer); setUploading(false); setMsg('网络错误，上传失败') }; xhr.send(fd) };
-  const del = async id => { if (!confirm('确定删除这份资料吗？')) return; await request('/knowledge/' + id, { method: 'DELETE' }); if (selected?.id === id) setSelected(null); load(true) };
+  const del = (id) => { setPendingDeleteId(id); setShowDeleteConfirm(true); };
+  const confirmDelete = async () => { const id = pendingDeleteId; if (!id) return; setShowDeleteConfirm(false); await request('/knowledge/' + id, { method: 'DELETE' }); if (selected?.id === id) setSelected(null); load(true); setPendingDeleteId(null); };
   const reindex = async () => { setReindexing(true); setMsg(''); try { const d = await post('/knowledge/reindex', {}); setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`); load(true) } catch (e) { setMsg(e.message) } finally { setReindexing(false) } };
   const previewText = d => d.source_kind === 'media' ? '可播放' : d.preview_status === 'processing' ? '正在处理预览' : (d.has_preview || d.preview_status === 'ready') ? '可查看' : d.preview_status === 'failed' ? '预览失败' : '暂无预览';
   const canPreview = d => d.source_kind === 'media' || d.has_preview || d.preview_status === 'ready';
@@ -586,7 +629,6 @@ function Knowledge({ user }) {
   const fileTypeClass = d => isVideo(d) ? 'video' : isAudio(d) ? 'audio' : ['PPT', 'PPTX'].includes(fileExt(d)) ? 'ppt' : ['DOC', 'DOCX'].includes(fileExt(d)) ? 'word' : fileExt(d) === 'PDF' ? 'pdf' : 'other';
   const jumpCaption = item => { const player = mediaRef.current; if (!player) return; player.currentTime = Math.max(0, item.start); player.play().catch(() => { }) };
   const captionPanel = captions.length > 0 && <div className="caption-panel"><div className="caption-head"><b>滚动字幕</b><span>{activeCaption >= 0 ? `${formatSourceTime(captions[activeCaption].start)} - ${formatSourceTime(captions[activeCaption].end)}` : '播放时自动定位'}</span></div><div className="caption-list" ref={captionListRef}>{captions.map((item, index) => <button type="button" data-caption-index={index} className={index === activeCaption ? 'active' : ''} key={`${item.start}-${index}`} onClick={() => jumpCaption(item)}><em>{formatSourceTime(item.start)}</em><span>{item.text}</span></button>)}</div></div>;
-  // 实时筛选：输入即变化
   const filteredDocs = docs.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const clearSearch = () => setSearchTerm('');
   return <>
@@ -609,16 +651,8 @@ function Knowledge({ user }) {
       <div><Sparkles /><span><b>{filteredDocs.filter(d => d.preview_status === 'processing').length}</b><small>预览处理中</small></span></div>
     </div>
     <div className="knowledge-search">
-      <input
-        type="text"
-        placeholder="搜索资料名称..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="search-input"
-      />
-      <button className="search-btn" onClick={clearSearch} title="清空搜索">
-        {searchTerm ? <X size={18} /> : <Search size={18} />}
-      </button>
+      <input type="text" placeholder="搜索资料名称..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
+      <button className="search-btn" onClick={clearSearch} title="清空搜索">{searchTerm ? <X size={18} /> : <Search size={18} />}</button>
     </div>
     <section className="panel table-panel">
       <div className="panel-head"><div><h3>{isTeacher ? '全部资料' : '教师共享资料'}</h3><p>支持 DOC、DOCX、PPT、PPTX、PDF、音频和视频</p></div></div>
@@ -667,6 +701,17 @@ function Knowledge({ user }) {
             ? <iframe key={`${selected.id}-${targetPage || 'top'}`} className="document-frame" src={`${API}/knowledge/${selected.id}/preview${targetPage ? `#page=${targetPage}&zoom=page-width` : ''}`} title={selected.name} />
             : <div className="no-preview"><AlertCircle /><b>{selected.preview_status === 'processing' ? '原版式预览正在处理中' : '暂无原版式预览'}</b><p>{selected.preview_status === 'processing' ? '上传已经成功，预览文件正在后台生成，完成后预览标签会自动变为可查看。' : (selected.preview_error || '该文件暂时没有可查看的原版式预览。')}</p></div>}
     </section>}
+    {showDeleteConfirm && (
+      <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteId(null); }}>
+        <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+          <p style={{ fontSize: 16, marginBottom: 20 }}>确定删除这份资料吗？</p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button className="secondary" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteId(null); }}>取消</button>
+            <button className="primary" onClick={confirmDelete}>确定</button>
+          </div>
+        </div>
+      </div>
+    )}
   </>
 }
 function Analysis({ role }) {
@@ -1073,11 +1118,13 @@ const renderMasteryRowBackground = (props) => {
 </div>
       </section>
       <section className="panel insight">
-        <div className="insight-icon"><Sparkles/></div>
-        <h3>智能学习建议</h3>
-        <p>{data?.suggestion||'暂无足够学习记录。'}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div className="insight-icon"><Sparkles /></div>
+          <h3 style={{ margin: 0 }}>智能学习建议</h3>
+        </div>
+        <p>{data?.suggestion || '暂无足够学习记录。'}</p>
         <div className="insight-list">
-          {mastery.slice(0,3).map((m,i)=><div key={m.topic}><span>{i+1}</span><b>{m.topic}<small>{m.score<70?'建议重点复习':m.score<85?'继续巩固':'掌握良好'}</small></b><em>{m.score}%</em></div>)}
+          {mastery.slice(0, 3).map((m, i) => <div key={m.topic}><span>{i + 1}</span><b>{m.topic}<small>{m.score < 70 ? '建议重点复习' : m.score < 85 ? '继续巩固' : '掌握良好'}</small></b><em>{m.score}%</em></div>)}
         </div>
       </section>
     </div>
@@ -1092,17 +1139,31 @@ const renderMasteryRowBackground = (props) => {
 function questionTypeText(type){return type==='choice'?'单选题':type==='fill'?'填空题':type==='solution'?'解答题':'题目'}
 function TeacherExams(){
   const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等',question_types:['choice','fill','solution']}),[loading,setLoading]=useState(false),[msg,setMsg]=useState(''),[preview,setPreview]=useState(null),[selected,setSelected]=useState([]);
+  const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
+  const [pendingDeleteId,setPendingDeleteId]=useState(null);
   const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});
-  useEffect(() => {
-  load();
-}, []);
+  useEffect(() => { load(); }, []);
   const toggleType=type=>setForm(f=>{const exists=f.question_types.includes(type);const next=exists?f.question_types.filter(x=>x!==type):[...f.question_types,type];return {...f,question_types:next.length?next:[type]}});
   const openPreview=exam=>{setPreview(exam);setSelected((exam.questions||[]).map(q=>q.id));setMsg('')};
   const generate=async e=>{e.preventDefault();setLoading(true);setMsg('');try{const exam=await post('/exams/generate',{...form,count:Number(form.count)});setMsg('习题生成成功，请预览并勾选后发布。');openPreview(exam);load()}catch(e){setMsg(e.message)}finally{setLoading(false)}};
   const toggleQuestion=id=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
   const publish=async (exam=preview)=>{if(!exam)return;if(!selected.length){setMsg('请至少勾选一道习题再发布。');return}await post(`/exams/${exam.id}/publish`,{question_ids:selected});setMsg('已发布到学生端');setPreview(null);setSelected([]);load()};
-  const remove=async id=>{if(!confirm('确定删除这套习题吗？'))return;await request(`/exams/${id}`,{method:'DELETE'});if(preview?.id===id){setPreview(null);setSelected([])}load()};
-  return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice','单选题'],['fill','填空题'],['solution','解答题']].map(([type,label])=><label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={()=>toggleType(type)}/>{label}</label>)}</div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>openPreview(exam)}>预览发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div>{preview&&<section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={()=>setSelected(preview.questions.map(q=>q.id))}>全选</button><button className="secondary-btn" onClick={()=>setSelected([])}>清空</button><button className="primary" onClick={()=>publish(preview)}>发布所选</button><button onClick={()=>setPreview(null)}><X/></button></div></div><div className="preview-questions">{preview.questions.map((q,i)=><article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={()=>toggleQuestion(q.id)}/><span>{i+1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length>0&&<ul>{q.options.map(o=><li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis&&<p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}</>}
+  const remove=(id)=>{setPendingDeleteId(id);setShowDeleteConfirm(true);};
+  const confirmDelete=async()=>{const id=pendingDeleteId;if(!id)return;setShowDeleteConfirm(false);await request(`/exams/${id}`,{method:'DELETE'});if(preview?.id===id){setPreview(null);setSelected([])}load();setPendingDeleteId(null);};
+  return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice','单选题'],['fill','填空题'],['solution','解答题']].map(([type,label])=><label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={()=>toggleType(type)}/>{label}</label>)}</div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>openPreview(exam)}>预览发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div>{preview&&<section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={()=>setSelected(preview.questions.map(q=>q.id))}>全选</button><button className="secondary-btn" onClick={()=>setSelected([])}>清空</button><button className="primary" onClick={()=>publish(preview)}>发布所选</button><button onClick={()=>setPreview(null)}><X/></button></div></div><div className="preview-questions">{preview.questions.map((q,i)=><article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={()=>toggleQuestion(q.id)}/><span>{i+1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length>0&&<ul>{q.options.map(o=><li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis&&<p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}
+    {showDeleteConfirm && (
+      <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteId(null); }}>
+        <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+          <p style={{ fontSize: 16, marginBottom: 20 }}>确定删除这套习题吗？</p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button className="secondary" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteId(null); }}>取消</button>
+            <button className="primary" onClick={confirmDelete}>确定</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+}
 function StudentExamsLegacy({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`)]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(() => {
   load();
 }, []);const submitted=id=>subs.find(s=>s.exam_id===id);const open=exam=>{setActive(exam);setAnswers({});setResult(null)};const submit = () => {
@@ -1123,7 +1184,7 @@ const doSubmit = async () => {
       </div>
     </div>
   </div>
-)}</section>;return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>完成教师发布的习题，结果会自动进入学情分析和错题本。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className="done"><CheckCircle2/>已完成 {done.accuracy}%</span>}</div><button onClick={()=>open(exam)}>{done?'重新练习':'开始练习'}<ChevronRight/></button></article>})}</div></>}
+)}</section>;return <><section className="analysis-title"><div><span className="eyebrow"><ClipboardList size={15}/>课程练习</span><h1>练习中心</h1><p>完成教师发布的习题，结果会自动进入学情分析和错题本。</p></div></section><div className="exercise-grid">{items.length===0?<div className="panel empty">教师还没有发布习题</div>:items.map(exam=>{const done=submitted(exam.id);return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList/></i><em data-difficulty={exam.difficulty}>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done&&<span className="done"><CheckCircle2/>已完成 {done.accuracy}%</span>}</div><button onClick={()=>open(exam)}>{done?'重新练习':'开始练习'}<ChevronRight/></button></article>})}</div></>}
 function StudentExams({ user }) {
   const [items, setItems] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -1206,7 +1267,7 @@ function StudentExams({ user }) {
       <img src={EmptyQuestions} alt="暂无习题" className="empty-illustration" />
       <h3>还没有习题</h3>
       <p>教师发布习题后，这里就会显示啦</p>
-    </div> : items.map(exam => { const done = submitted(exam.id); return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList /></i><em>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done && <span className={`done ${done.status === 'pending_teacher' ? 'pending' : ''}`}><CheckCircle2 />{done.status === 'pending_teacher' ? '待教师批改' : `已完成 ${done.accuracy}%`}</span>}</div><button onClick={() => open(exam)}>{done ? '查看结果' : '开始练习'}<ChevronRight /></button></article> })}</div></>
+    </div> : items.map(exam => { const done = submitted(exam.id); return <article className="panel exercise" key={exam.id}><div className="exercise-top"><i><ClipboardList /></i><em data-difficulty={exam.difficulty}>{exam.difficulty}</em></div><h3>{exam.title}</h3><p>{exam.document_name} · {exam.chapter}</p><div><span>{exam.questions.length} 道题</span>{done && <span className={`done ${done.status === 'pending_teacher' ? 'pending' : ''}`}><CheckCircle2 />{done.status === 'pending_teacher' ? '待教师批改' : `已完成 ${done.accuracy}%`}</span>}</div><button onClick={() => open(exam)}>{done ? '查看结果' : '开始练习'}<ChevronRight /></button></article> })}</div></>
 }
 function TeacherGrading() {
   const [items, setItems] = useState([]);
