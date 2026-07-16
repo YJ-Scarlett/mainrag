@@ -58,10 +58,9 @@ def teacher_grade(submission_id: str, body: GradeSubmissionRequest, x_role: str 
 
 
 @router.get("/student/submissions")
-def submissions(student: str = "张同学"):
+def submissions(student: str):
     return {"items": student_submissions(student)}
 
-
 @router.get("/student/wrongbook")
-def wrongbook(student: str = "张同学"):
+def wrongbook(student: str):
     return {"items": wrong_questions(student)}

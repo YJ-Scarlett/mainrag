@@ -25,6 +25,26 @@ def _parse_json(content: str) -> list[dict]:
         raise HTTPException(502, "DeepSeek 未返回习题数组")
     return value
 
+def _normalize_knowledge_points(item: dict) -> list[str]:
+    raw_points = item.get("knowledge_points")
+
+    # 兼容 AI 或旧数据仍返回单个 knowledge_point
+    if raw_points is None:
+        raw_points = item.get("knowledge_point", "综合知识")
+
+    if isinstance(raw_points, str):
+        raw_points = [raw_points]
+
+    if not isinstance(raw_points, list):
+        raw_points = ["综合知识"]
+
+    result = []
+    for point in raw_points:
+        point = str(point).strip()
+        if point and point not in result:
+            result.append(point)
+
+    return result or ["综合知识"]
 
 def _normalize_questions(items: list[dict], count: int) -> list[dict]:
     questions = []
@@ -42,6 +62,7 @@ def _normalize_questions(items: list[dict], count: int) -> list[dict]:
         else:
             question_type = "solution"
         answer = str(item.get("answer", "")).strip()
+        knowledge_points = _normalize_knowledge_points(item)
         questions.append({
             "id": uuid.uuid4().hex[:10],
             "type": question_type,
@@ -49,7 +70,10 @@ def _normalize_questions(items: list[dict], count: int) -> list[dict]:
             "options": options,
             "answer": answer,
             "analysis": str(item.get("analysis", "")).strip(),
-            "knowledge_point": str(item.get("knowledge_point", "综合知识")),
+            "knowledge_points": knowledge_points,
+
+# 暂时保留旧字段，避免其他功能立即报错
+"knowledge_point": knowledge_points[0],
             "score": 10,
         })
     if not questions or any(not item["question"] or not item["answer"] for item in questions):
@@ -69,7 +93,8 @@ async def generate_exam(document_id: str, chapter: str, title: str, count: int, 
     type_text = "、".join(type_map[item] for item in selected_types)
     prompt = f"""根据下面的课程资料生成 {count} 道{difficulty}难度习题，范围为“{chapter}”。
 题型范围：{type_text}。请尽量均衡覆盖所选题型。严格返回 JSON 数组，不要输出 Markdown。
-每项格式：{{"type":"choice/fill/solution","question":"题干","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"答案或参考答案","analysis":"解析","knowledge_point":"知识点"}}。
+每项格式：{{"type":"choice/fill/solution","question":"题干","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"答案或参考答案","analysis":"解析","knowledge_points":["知识点1","知识点2"]}}。
+每道题的 knowledge_points 必须是 JSON 字符串数组，包含 1 到 3 个与该题直接相关的知识点，不要返回笼统或重复的知识点。
 单项选择题 type 为 choice，options 返回 4 个选项，answer 返回选项字母。
 填空题 type 为 fill，options 返回空数组，题干用“____”标出空缺，answer 返回标准填空答案。
 解答题 type 为 solution，options 返回空数组，answer 返回参考答案。题目必须能从资料中得到答案。
