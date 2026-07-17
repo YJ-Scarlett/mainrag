@@ -39,25 +39,40 @@ function ToastProvider({ children }) {
   );
 }
 
-function Login({onLogin}) {
-  const [role,setRole]=useState('student');
-  const [form,setForm]=useState({username:'student',password:'123456'});
-  const [error,setError]=useState('');
-  const [loading,setLoading]=useState(false);
-  const [mode, setMode] = useState('login'); // 'login' 或 'register'
+function Login({ onLogin }) {
+  const [role, setRole] = useState('student');
+  const [form, setForm] = useState({ username: 'student', password: '123456' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState('login');
   const [registerForm, setRegisterForm] = useState({
     name: '',
     password: '',
     confirm: '',
     role: 'student'
   });
+  const [fieldErrors, setFieldErrors] = useState({ name: '', password: '', confirm: '' });
+
+  const validateField = (field, value) => {
+    let errorMsg = '';
+    if (field === 'name' && value.trim().length === 0) {
+      errorMsg = '请输入姓名';
+    }
+    if (field === 'password' && value.length > 0 && value.length < 6) {
+      errorMsg = '密码至少6位';
+    }
+    if (field === 'confirm' && registerForm.password !== value) {
+      errorMsg = '两次密码输入不一致';
+    }
+    setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
+  };
 
   const switchRole = (r) => {
     setRole(r);
     if (mode === 'login') {
-      setForm({...form, username: r === 'student' ? 'student' : 'teacher', password: '123456'});
+      setForm({ ...form, username: r === 'student' ? 'student' : 'teacher', password: '123456' });
     } else {
-      setRegisterForm({...registerForm, role: r});
+      setRegisterForm({ ...registerForm, role: r });
     }
     setError('');
   };
@@ -65,10 +80,11 @@ function Login({onLogin}) {
   const switchMode = (m) => {
     setMode(m);
     setError('');
+    setFieldErrors({ name: '', password: '', confirm: '' });
     if (m === 'login') {
-      setForm({username: role === 'student' ? 'student' : 'teacher', password: '123456'});
+      setForm({ username: role === 'student' ? 'student' : 'teacher', password: '123456' });
     } else {
-      setRegisterForm({name: '', password: '', confirm: '', role: role});
+      setRegisterForm({ name: '', password: '', confirm: '', role: role });
     }
   };
 
@@ -76,7 +92,7 @@ function Login({onLogin}) {
     e.preventDefault();
     setLoading(true);
     try {
-      const d = await post('/login', {...form, role});
+      const d = await post('/login', { ...form, role });
       localStorage.setItem('mainrag-user', JSON.stringify(d.user));
       history.replaceState({}, '', `/${role}/home`);
       onLogin(d.user);
@@ -89,6 +105,12 @@ function Login({onLogin}) {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    // 前端实时校验
+    const hasError = Object.values(fieldErrors).some(err => err !== '');
+    if (hasError) {
+      setError('请修正表单中的错误');
+      return;
+    }
     if (registerForm.password !== registerForm.confirm) {
       setError('两次密码输入不一致');
       return;
@@ -104,10 +126,9 @@ function Login({onLogin}) {
         password: registerForm.password,
         role: registerForm.role
       });
-      // 注册成功，自动切换到登录并填入账号
       setMode('login');
       const autoUsername = registerForm.role === 'student' ? `s_${registerForm.name}` : `t_${registerForm.name}`;
-      setForm({username: autoUsername, password: registerForm.password});
+      setForm({ username: autoUsername, password: registerForm.password });
       setError(`注册成功！你的登录账号是：${autoUsername}`);
     } catch (err) {
       setError(err.message);
@@ -137,7 +158,6 @@ function Login({onLogin}) {
         <h2>{mode === 'login' ? '欢迎回来' : '创建账号'}</h2>
         <p>{mode === 'login' ? '选择你的身份，开始今天的学习旅程' : '注册后即可使用知问课堂'}</p>
 
-        {/* 角色选择 */}
         <div className="role-tabs" style={{ marginBottom: '12px' }}>
           <button type="button" className={role === 'student' ? 'active' : ''} onClick={() => switchRole('student')}><GraduationCap />学生端</button>
           <button type="button" className={role === 'teacher' ? 'active' : ''} onClick={() => switchRole('teacher')}><Users />教师端</button>
@@ -164,19 +184,41 @@ function Login({onLogin}) {
         ) : (
           <>
             <label>姓名
-              <input value={registerForm.name} onChange={e => setRegisterForm({ ...registerForm, name: e.target.value })} placeholder="请输入您的姓名（作为登录账号）" />
+              <input
+                value={registerForm.name}
+                onChange={e => { setRegisterForm({ ...registerForm, name: e.target.value }); validateField('name', e.target.value); }}
+                onBlur={e => validateField('name', e.target.value)}
+                placeholder="请输入您的姓名（作为登录账号）"
+                style={{ borderColor: fieldErrors.name ? '#d9534f' : '' }}
+              />
+              {fieldErrors.name && <div style={{ color: '#d9534f', fontSize: '12px', marginTop: '4px' }}>{fieldErrors.name}</div>}
             </label>
             <label>密码
-              <input type="password" value={registerForm.password} onChange={e => setRegisterForm({ ...registerForm, password: e.target.value })} placeholder="至少6位" />
+              <input
+                type="password"
+                value={registerForm.password}
+                onChange={e => { setRegisterForm({ ...registerForm, password: e.target.value }); validateField('password', e.target.value); }}
+                onBlur={e => validateField('password', e.target.value)}
+                placeholder="至少6位"
+                style={{ borderColor: fieldErrors.password ? '#d9534f' : '' }}
+              />
+              {fieldErrors.password && <div style={{ color: '#d9534f', fontSize: '12px', marginTop: '4px' }}>{fieldErrors.password}</div>}
             </label>
             <label>确认密码
-              <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({ ...registerForm, confirm: e.target.value })} placeholder="再次输入密码" />
+              <input
+                type="password"
+                value={registerForm.confirm}
+                onChange={e => { setRegisterForm({ ...registerForm, confirm: e.target.value }); validateField('confirm', e.target.value); }}
+                onBlur={e => validateField('confirm', e.target.value)}
+                placeholder="再次输入密码"
+                style={{ borderColor: fieldErrors.confirm ? '#d9534f' : '' }}
+              />
+              {fieldErrors.confirm && <div style={{ color: '#d9534f', fontSize: '12px', marginTop: '4px' }}>{fieldErrors.confirm}</div>}
             </label>
             <button className="primary login-btn" disabled={loading}>
               {loading ? '注册中…' : '注册新账号'}
               <ChevronRight size={18} />
             </button>
-            {/* 注册模式下底部显示返回登录 */}
             <div style={{ marginTop: '14px', textAlign: 'center' }}>
               <button
                 type="button"
