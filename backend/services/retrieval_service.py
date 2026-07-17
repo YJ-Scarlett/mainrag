@@ -217,6 +217,21 @@ async def retrieve(query: str, top_k: int = 5) -> list[dict]:
         if key not in merged or float(row.get("score") or 0) > float(merged[key].get("score") or 0):
             merged[key] = row
     rows = list(merged.values())
+    current_documents = store.load()["documents"]
+    current_ids = {document["id"] for document in current_documents}
+    current_by_name = {document["name"]: document for document in current_documents}
+    canonical_rows: list[dict] = []
+    for row in rows:
+        document_id = row.get("document_id")
+        if document_id not in current_ids:
+            matched_document = current_by_name.get(row.get("document"))
+            if not matched_document:
+                continue
+            row = dict(row)
+            row["document_id"] = matched_document["id"]
+            row["document"] = matched_document["name"]
+        canonical_rows.append(row)
+    rows = canonical_rows
     query_terms = Counter(tokenize(expanded_query))
     for row in rows:
         content = (row.get("content") or "")
