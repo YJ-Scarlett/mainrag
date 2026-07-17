@@ -60,9 +60,14 @@ def delete_document_vectors(document_id: str) -> None:
 def clear_vectors() -> None:
     collection = get_collection()
     try:
-        collection.delete()
+        ids = collection.get().get("ids", [])
+        if ids:
+            collection.delete(ids=ids)
     except Exception:
-        pass
+        try:
+            collection.delete()
+        except Exception:
+            pass
 
 
 def query_vectors(query_embedding: list[float], top_k: int = 5) -> list[dict]:

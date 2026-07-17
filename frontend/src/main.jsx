@@ -391,6 +391,18 @@ function sourceRefsForText(text,sources=[]){
     if(!matched&&doc&&raw.includes(doc)&&(chunk||page)){
       matched=(chunk&&raw.includes(chunk))||(page&&raw.includes(page));
     }
+    if(!matched&&source?.start_time!==undefined&&source?.start_time!==null&&source?.end_time!==undefined&&source?.end_time!==null){
+      const startLabel=formatSourceTime(source.start_time);
+      const endLabel=formatSourceTime(source.end_time);
+      const startSeconds=Number(source.start_time);
+      const endSeconds=Number(source.end_time);
+      matched=raw.includes(`${startLabel} - ${endLabel}`)
+        ||raw.includes(`${startLabel}-${endLabel}`)
+        ||compact.includes(`${startLabel}-${endLabel}`)
+        ||(!Number.isNaN(startSeconds)&&raw.includes(`${startSeconds.toFixed(1)}s`))
+        ||(!Number.isNaN(endSeconds)&&raw.includes(`${endSeconds.toFixed(1)}s`))
+        ||(!Number.isNaN(startSeconds)&&raw.includes(`${Math.round(startSeconds)}秒`));
+    }
     if(matched)refs.push({source,index});
   });
   return refs;
@@ -438,10 +450,14 @@ function MarkdownText({text,sources=[],onSourceClick}){
     const blockText=block.type==='ol'||block.type==='ul'?block.items.join('\n'):block.text||'';
     groups[index]=sourceRefsForText(blockText,sources);
   });
+  if(!groups.some(group=>group.length)&&sources.some(source=>source?.start_time!==undefined&&source?.start_time!==null)){
+    const firstTextBlock=parsed.findIndex(block=>block.type!=='heading');
+    if(firstTextBlock>=0)groups[firstTextBlock]=sources.map((source,index)=>({source,index}));
+  }
   const blocks=parsed.map((block,index)=>{
     const cites=<SourceSups items={groups[index]} onSourceClick={onSourceClick}/>;
-    if(block.type==='ol')return <ol key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ol>;
-    if(block.type==='ul')return <ul key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ul>;
+    if(block.type==='ol')return <div key={index}><ol>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ol>{cites}</div>;
+    if(block.type==='ul')return <div key={index}><ul>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ul>{cites}</div>;
     if(block.type==='heading')return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
     return <p key={index}>{renderInlineMarkdown(block.text)}{cites}</p>;
   });
@@ -482,7 +498,7 @@ function Chat({user}){
   const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
   const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
-  const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
+  const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, name: s.document || '', page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
   const send = async (q = input) => {
     if (!q.trim() || loading) return;
     const question = q.trim();
@@ -636,6 +652,7 @@ function Knowledge({ user }) {
   const [docs, setDocs] = useState([]), [selected, setSelected] = useState(null), [uploading, setUploading] = useState(false), [reindexing, setReindexing] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [uploadName, setUploadName] = useState(''), [msg, setMsg] = useState(''), [searchTerm, setSearchTerm] = useState('');
   const [targetPage, setTargetPage] = useState('');
   const [targetTime, setTargetTime] = useState(null);
+  const [targetDocName, setTargetDocName] = useState('');
   const [activeCaption, setActiveCaption] = useState(-1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -643,7 +660,8 @@ function Knowledge({ user }) {
   const captionListRef = useRef(null);
   const load = (fresh = false) => request('/knowledge', { cache: !fresh }).then(d => setDocs(d.items));
   useEffect(() => { load(); }, []);
-  useEffect(() => { const params = new URLSearchParams(location.search); const target = params.get('doc'); const page = params.get('page') || ''; const start = params.get('start'); setTargetPage(page); setTargetTime(start !== null && start !== '' ? Number(start) : null); if (target) view(target, page) }, []);
+  useEffect(() => { const params = new URLSearchParams(location.search); const target = params.get('doc'); const page = params.get('page') || ''; const start = params.get('start'); setTargetPage(page); setTargetDocName(params.get('name') || ''); setTargetTime(start !== null && start !== '' ? Number(start) : null); if (target) view(target, page) }, []);
+  useEffect(() => { const params = new URLSearchParams(location.search); const target = params.get('doc'); const page = params.get('page') || ''; const name = params.get('name') || targetDocName; if (!target || selected || !docs.length) return; const matched = docs.find(d => d.id === target) || docs.find(d => d.name === name); if (matched && matched.id !== target) { setMsg(''); view(matched.id, page) } }, [docs, selected, targetDocName]);
   useEffect(() => { if (!docs.some(d => d.preview_status === 'processing')) return; const timer = setInterval(() => load(true), 3000); return () => clearInterval(timer) }, [docs]);
   useEffect(() => { if (!selected || selected.preview_status !== 'processing') return; const timer = setInterval(() => request('/knowledge/' + selected.id, { cache: false }).then(setSelected).catch(() => { }), 3000); return () => clearInterval(timer) }, [selected]);
   useEffect(() => { const player = mediaRef.current; if (!player || targetTime === null || Number.isNaN(targetTime)) return; const seek = () => { player.currentTime = Math.max(0, targetTime); player.play().catch(() => setMsg(`已定位到 ${formatSourceTime(targetTime)}，如未自动播放请点击播放器。`)) }; if (player.readyState >= 1) seek(); else player.addEventListener('loadedmetadata', seek, { once: true }); return () => player.removeEventListener('loadedmetadata', seek) }, [selected, targetTime]);
