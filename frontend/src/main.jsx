@@ -1,4 +1,4 @@
-﻿import React, {useEffect, useMemo, useRef, useState} from 'react';
+﻿import React, {useEffect, useMemo, useRef, useState, createContext, useContext} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, Camera, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, Eye, File, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Music, Search, Send, Sparkles, Trash2, Upload, Users, Video, X} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -12,9 +12,32 @@ import UploadCloud from './assets/illustrations/upload-cloud.svg';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const requestCache=new Map();
-function apiAssetUrl(path){if(!path)return '';if(/^(https?:|blob:|data:)/.test(path))return path;const base=API.endsWith('/api')?API.slice(0,-4):API.replace(/\/api\/?$/,'');return path.startsWith('/api')?base+path:API+path}
 async function request(path, options={}) { const {cache=true,...fetchOptions}=options;let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const method=(fetchOptions.method||'GET').toUpperCase();const cacheKey=`${role}:${path}`;if(method==='GET'&&cache&&requestCache.has(cacheKey)){const item=requestCache.get(cacheKey);if(Date.now()-item.time<10000)return item.data}const headers={...(fetchOptions.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...fetchOptions,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); if(method==='GET'&&cache)requestCache.set(cacheKey,{time:Date.now(),data}); return data; }
 const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+// ===== Toast 全局提示 =====
+const ToastContext = createContext(null);
+
+function ToastProvider({ children }) {
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  return (
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+      {toast && (
+        <div className="toast-container">
+          <div className={`toast-message ${toast.type}`}>
+            {toast.message}
+          </div>
+        </div>
+      )}
+    </ToastContext.Provider>
+  );
+}
 
 function Login({onLogin}) {
   const [role,setRole]=useState('student');
@@ -96,37 +119,37 @@ function Login({onLogin}) {
   return (
     <div className="login-page">
       <div className="login-brand">
-        <div className="brand-mark"><GraduationCap/></div>
+        <div className="brand-mark"><GraduationCap /></div>
         <div><b>知问课堂</b><span>轻量教学智能体</span></div>
       </div>
       <div className="login-copy">
-        <span className="eyebrow"><Sparkles size={15}/> AI 驱动的个性化学习</span>
-        <h1>让每一次提问<br/>都成为<span>成长的起点</span></h1>
+        <span className="eyebrow"><Sparkles size={15} /> AI 驱动的个性化学习</span>
+        <h1>让每一次提问<br />都成为<span>成长的起点</span></h1>
         <p>连接课程知识与学习过程，为教师提供洞察，为学生提供随时可用的智能辅导。</p>
         <div className="feature-row">
-          <i><Database/><span>课程知识库<small>统一沉淀教学资料</small></span></i>
-          <i><Bot/><span>智能问答<small>答案有据可循</small></span></i>
-          <i><ChartNoAxesCombined/><span>学情洞察<small>看见每一步成长</small></span></i>
+          <i><Database /><span>课程知识库<small>统一沉淀教学资料</small></span></i>
+          <i><Bot /><span>智能问答<small>答案有据可循</small></span></i>
+          <i><ChartNoAxesCombined /><span>学情洞察<small>看见每一步成长</small></span></i>
         </div>
       </div>
       <form className="login-card" onSubmit={mode === 'login' ? submit : handleRegister}>
-        <div className="mobile-logo"><GraduationCap/> 知问课堂</div>
+        <div className="mobile-logo"><GraduationCap /> 知问课堂</div>
         <h2>{mode === 'login' ? '欢迎回来' : '创建账号'}</h2>
         <p>{mode === 'login' ? '选择你的身份，开始今天的学习旅程' : '注册后即可使用知问课堂'}</p>
 
         {/* 角色选择 */}
         <div className="role-tabs" style={{ marginBottom: '12px' }}>
-          <button type="button" className={role === 'student' ? 'active' : ''} onClick={() => switchRole('student')}><GraduationCap/>学生端</button>
-          <button type="button" className={role === 'teacher' ? 'active' : ''} onClick={() => switchRole('teacher')}><Users/>教师端</button>
+          <button type="button" className={role === 'student' ? 'active' : ''} onClick={() => switchRole('student')}><GraduationCap />学生端</button>
+          <button type="button" className={role === 'teacher' ? 'active' : ''} onClick={() => switchRole('teacher')}><Users />教师端</button>
         </div>
 
         {mode === 'login' ? (
           <>
             <label>账号
-              <input value={form.username} onChange={e => setForm({...form, username: e.target.value})} />
+              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
             </label>
             <label>密码
-              <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+              <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
             </label>
             <div className="role-tabs" style={{ marginBottom: '12px' }}>
               <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
@@ -134,29 +157,42 @@ function Login({onLogin}) {
             </div>
             <button className="primary login-btn" disabled={loading}>
               {loading ? '正在登录…' : '进入知问课堂'}
-              <ChevronRight size={18}/>
+              <ChevronRight size={18} />
             </button>
             <small className="hint">演示账号：{role} / 123456</small>
           </>
         ) : (
           <>
             <label>姓名
-              <input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="请输入您的姓名（作为登录账号）" />
+              <input value={registerForm.name} onChange={e => setRegisterForm({ ...registerForm, name: e.target.value })} placeholder="请输入您的姓名（作为登录账号）" />
             </label>
             <label>密码
-              <input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="至少6位" />
+              <input type="password" value={registerForm.password} onChange={e => setRegisterForm({ ...registerForm, password: e.target.value })} placeholder="至少6位" />
             </label>
             <label>确认密码
-              <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({...registerForm, confirm: e.target.value})} placeholder="再次输入密码" />
+              <input type="password" value={registerForm.confirm} onChange={e => setRegisterForm({ ...registerForm, confirm: e.target.value })} placeholder="再次输入密码" />
             </label>
-            <div className="role-tabs" style={{ marginBottom: '12px' }}>
-              <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button>
-              <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button>
-            </div>
             <button className="primary login-btn" disabled={loading}>
               {loading ? '注册中…' : '注册新账号'}
-              <ChevronRight size={18}/>
+              <ChevronRight size={18} />
             </button>
+            {/* 注册模式下底部显示返回登录 */}
+            <div style={{ marginTop: '14px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#0c4b9d',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                ← 返回登录
+              </button>
+            </div>
           </>
         )}
 
@@ -370,31 +406,6 @@ function SourceSups({items=[],onSourceClick}){
   if(!items.length)return null;
   return <span className="source-sup-group">{items.map(({source,index})=><SourceSup key={index} source={source} index={index} onSourceClick={onSourceClick}/>)}</span>
 }
-function sourceRefsForText(text,sources=[]){
-  const raw=String(text||'');
-  if(!raw.trim()||!sources.length)return [];
-  const compact=raw.replace(/\s+/g,'');
-  const refs=[];
-  sources.forEach((source,index)=>{
-    let matched=false;
-    const chunk=source?.chunk!==undefined&&source?.chunk!==null?String(source.chunk):'';
-    const page=source?.page!==undefined&&source?.page!==null?String(source.page):'';
-    const doc=source?.document?String(source.document):'';
-    if(chunk){
-      const chunkPattern=new RegExp(`(?:片段|chunk|Chunk)[：:\\s\\[]*${chunk}(?!\\d)`);
-      matched=chunkPattern.test(raw)||compact.includes(`片段${chunk}`);
-    }
-    if(!matched&&page){
-      const pagePattern=new RegExp(`第\\s*${page}\\s*页|${page}\\s*页`);
-      matched=pagePattern.test(raw)||compact.includes(`第${page}页`);
-    }
-    if(!matched&&doc&&raw.includes(doc)&&(chunk||page)){
-      matched=(chunk&&raw.includes(chunk))||(page&&raw.includes(page));
-    }
-    if(matched)refs.push({source,index});
-  });
-  return refs;
-}
 function MarkdownText({text,sources=[],onSourceClick}){
   const cleanText=String(text||'').replace(/\n?\s*(参考资料|参考来源|资料来源|来源)\s*[:：][\s\S]*$/,'');
   const lines=cleanText.split('\n');
@@ -433,15 +444,18 @@ function MarkdownText({text,sources=[],onSourceClick}){
     while(i<lines.length&&lines[i].trim()&&!/^\s*\d+[.)、]\s+/.test(lines[i])&&!/^\s*[-*]\s+/.test(lines[i])&&!/^\s*#{1,3}\s+/.test(lines[i])){paragraph.push(lines[i]);i++}
     parsed.push({type:'p',text:paragraph.join('\n')});
   }
+  const citeTargets=parsed.map((block,index)=>block.type==='heading'?null:index).filter(index=>index!==null);
   const groups=parsed.map(()=>[]);
-  parsed.forEach((block,index)=>{
-    const blockText=block.type==='ol'||block.type==='ul'?block.items.join('\n'):block.text||'';
-    groups[index]=sourceRefsForText(blockText,sources);
-  });
+  if(citeTargets.length&&sources.length){
+    sources.forEach((source,index)=>{
+      const target=citeTargets[Math.min(index,citeTargets.length-1)];
+      groups[target].push({source,index});
+    });
+  }
   const blocks=parsed.map((block,index)=>{
     const cites=<SourceSups items={groups[index]} onSourceClick={onSourceClick}/>;
-    if(block.type==='ol')return <ol key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ol>;
-    if(block.type==='ul')return <ul key={index}>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}<SourceSups items={sourceRefsForText(item,sources)} onSourceClick={onSourceClick}/></li>)}</ul>;
+    if(block.type==='ol')return <React.Fragment key={index}><ol>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ol>{cites}</React.Fragment>;
+    if(block.type==='ul')return <React.Fragment key={index}><ul>{block.items.map((item,j)=><li key={j}>{renderInlineMarkdown(item)}</li>)}</ul>{cites}</React.Fragment>;
     if(block.type==='heading')return <h4 key={index}>{renderInlineMarkdown(block.text)}</h4>;
     return <p key={index}>{renderInlineMarkdown(block.text)}{cites}</p>;
   });
@@ -470,17 +484,18 @@ function parseMediaCaptions(content=''){
   return rows;
 }
 function Chat({user}){
+  const { showToast } = useContext(ToastContext);
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[photoLoading,setPhotoLoading]=useState(false),[photoPreview,setPhotoPreview]=useState(null),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
   const [pendingDeleteItem,setPendingDeleteItem]=useState(null);
   const photoInputRef=useRef(null);
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
-  const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`,{cache:false}).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
+  const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(() => { loadHistory(); }, [user.name]);
-  const openHistory=item=>{const isPhoto=item.kind==='photo_search'||item.image_url||item.ocr_text||String(item.question||'').startsWith('拍照搜题');const ocrText=item.ocr_text||(isPhoto?String(item.question||'').replace(/^拍照搜题：\n?/,''):'');setActiveHistory(item.id);setMessages([welcome,{role:'user',text:isPhoto?'拍照搜题':item.question,image:apiAssetUrl(item.image_url),ocrText},{role:'ai',text:item.answer,sources:item.sources||[]}])};
+  const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
   const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
-  const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);};
+  const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);showToast('历史记录已删除 ✅');};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
   const send = async (q = input) => {
@@ -493,14 +508,6 @@ function Chat({user}){
     setLoading(true);
     let pendingText = '';
     let updateTimer = null;
-    let streamDone = false;
-    let hasAnswerText = false;
-    const controller = new AbortController();
-    let stallTimer = null;
-    const resetStallTimer = () => {
-      if (stallTimer) clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => controller.abort(), 45000);
-    };
     const flushUpdate = () => {
       if (pendingText) {
         appendToLastAi({ append: pendingText, streaming: true });
@@ -510,18 +517,16 @@ function Chat({user}){
     };
     const scheduleUpdate = () => {
       if (!updateTimer) {
-        updateTimer = setTimeout(flushUpdate, 30); // 每 30ms 刷新一次
+        updateTimer = setTimeout(flushUpdate, 30);
       }
     };
     try {
       let role = '';
       try { role = JSON.parse(localStorage.getItem('mainrag-user'))?.role || '' } catch { }
-      resetStallTimer();
       const response = await fetch(API + '/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(role ? { 'X-Role': role } : {}) },
-        body: JSON.stringify({ message: question, student: user.name }),
-        signal: controller.signal
+        body: JSON.stringify({ message: question, student: user.name })
       });
       if (!response.ok) {
         let data = {};
@@ -534,7 +539,6 @@ function Chat({user}){
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        resetStallTimer();
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split('\n\n');
         buffer = events.pop() || '';
@@ -547,13 +551,10 @@ function Chat({user}){
             const event = JSON.parse(jsonStr);
             if (event.type === 'delta') {
               pendingText += event.content || '';
-              if(event.content)hasAnswerText = true;
               scheduleUpdate();
             }
             if (event.type === 'sources') appendToLastAi({ sources: event.sources || [] });
             if (event.type === 'done') {
-              streamDone = true;
-              // 强制刷新剩余内容
               if (updateTimer) clearTimeout(updateTimer);
               if (pendingText) {
                 appendToLastAi({ append: pendingText, streaming: true });
@@ -566,22 +567,16 @@ function Chat({user}){
           }
         }
       }
-      // 循环结束后，确保所有内容都已渲染
       if (updateTimer) clearTimeout(updateTimer);
       if (pendingText) {
         appendToLastAi({ append: pendingText, streaming: true });
-      }
-      if (!streamDone) {
-        appendToLastAi({ append: hasAnswerText ? '\n\n回答已停止等待，可以继续提问。' : '回答生成超时，请稍后重试。', streaming: false });
       }
       loadHistory();
     } catch (e) {
       console.error('流式请求失败:', e);
       if (updateTimer) clearTimeout(updateTimer);
-      const message = e.name === 'AbortError' ? '回答生成超时，已停止等待，可以重新提问。' : '回答生成中断，请稍后重试。';
-      appendToLastAi(hasAnswerText ? { append: `\n\n${message}`, streaming: false } : { text: message, streaming: false });
+      appendToLastAi({ text: '回答生成中断，请稍后重试。', streaming: false });
     } finally {
-      if (stallTimer) clearTimeout(stallTimer);
       setLoading(false);
     }
   };
@@ -602,10 +597,9 @@ function Chat({user}){
       const response=await fetch(API+'/chat/photo-search',{method:'POST',headers:{...(role?{'X-Role':role}:{})},body:fd});
       let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}
       if(!response.ok)throw new Error(data.detail||'拍照搜题失败');
-      const savedImage=apiAssetUrl(data.image_url)||previewUrl;
-      setPhotoPreview(old=>old?{...old,ocrText:data.ocr_text||'',status:'识别完成'}:old);
-      setMessages(items=>items.map((m,i)=>i===items.length-2&&m.role==='user'?{...m,image:savedImage,ocrText:data.ocr_text||''}:m));
-      appendToLastAi({text:data.answer,sources:data.sources||[],streaming:false});
+      setPhotoPreview(old=>old?{...old,ocrText:data.ocr_text||'',status:'识别完成，可在输入框中修改题目文字'}:old);
+      setMessages(items=>items.map((m,i)=>i===items.length-2&&m.role==='user'?{...m,ocrText:data.ocr_text||''}:m));
+      appendToLastAi({text:`**识别题目：**\n${data.ocr_text}\n\n${data.answer}`,sources:data.sources||[],streaming:false});
       loadHistory();
     }catch(error){
       setPhotoPreview(old=>old?{...old,status:'识别失败',ocrText:error.message}:old);
@@ -655,7 +649,16 @@ function Knowledge({ user }) {
   const download = d => { window.open(`${API}/knowledge/${d.id}/download`, '_blank') };
   const upload = e => { const file = e.target.files[0]; if (!file) return; e.target.value = ''; const isMedia = /\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name); setUploading(true); setProgress(0); setStage('正在上传文件'); setUploadName(file.name); setMsg(''); const fd = new FormData(); fd.append('file', file); fd.append('category', '课程资料'); const xhr = new XMLHttpRequest(); let timer; xhr.open('POST', API + '/knowledge/upload'); xhr.setRequestHeader('X-Role', 'teacher'); xhr.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 65)) }; xhr.upload.onload = () => { setProgress(p => Math.max(p, 66)); setStage(isMedia ? '正在转写音视频并建立向量索引' : '正在解析文档并建立向量索引'); timer = setInterval(() => setProgress(p => p < 94 ? p + 1 : p), 700) }; xhr.onload = () => { clearInterval(timer); let data = {}; try { data = JSON.parse(xhr.responseText) } catch { } if (xhr.status >= 200 && xhr.status < 300) { setProgress(100); setStage(isMedia ? '上传完成，音视频已转写入库' : '上传完成，预览后台处理中'); setMsg(data.message || (isMedia ? '上传成功，音视频已转写并可用于检索问答' : '上传成功，预览正在后台生成')); load(true); setTimeout(() => setUploading(false), 800) } else { setUploading(false); setMsg(data.detail || '上传处理失败') } }; xhr.onerror = () => { clearInterval(timer); setUploading(false); setMsg('网络错误，上传失败') }; xhr.send(fd) };
   const del = (id) => { setPendingDeleteId(id); setShowDeleteConfirm(true); };
-  const confirmDelete = async () => { const id = pendingDeleteId; if (!id) return; setShowDeleteConfirm(false); await request('/knowledge/' + id, { method: 'DELETE' }); if (selected?.id === id) setSelected(null); load(true); setPendingDeleteId(null); };
+  const confirmDelete = async () => {
+    const id = pendingDeleteId;
+    if (!id) return;
+    setShowDeleteConfirm(false);
+    await request('/knowledge/' + id, { method: 'DELETE' });
+    if (selected?.id === id) setSelected(null);
+    load(true);
+    setPendingDeleteId(null);
+    showToast('资料已删除 ✅');
+  };
   const reindex = async () => { setReindexing(true); setMsg(''); try { const d = await post('/knowledge/reindex', {}); setMsg(`${d.message}：${d.documents} 个文档，${d.chunks} 个向量片段`); load(true) } catch (e) { setMsg(e.message) } finally { setReindexing(false) } };
   const previewText = d => d.source_kind === 'media' ? '可播放' : d.preview_status === 'processing' ? '正在处理预览' : (d.has_preview || d.preview_status === 'ready') ? '可查看' : d.preview_status === 'failed' ? '预览失败' : '暂无预览';
   const canPreview = d => d.source_kind === 'media' || d.has_preview || d.preview_status === 'ready';
@@ -1179,20 +1182,21 @@ const renderMasteryRowBackground = (props) => {
   </>;
 }
 function questionTypeText(type){return type==='choice'?'单选题':type==='fill'?'填空题':type==='solution'?'解答题':'题目'}
-function TeacherExams(){
-  const [docs,setDocs]=useState([]),[items,setItems]=useState([]),[form,setForm]=useState({document_id:'',chapter:'全文',title:'',count:5,difficulty:'中等',question_types:['choice','fill','solution']}),[loading,setLoading]=useState(false),[msg,setMsg]=useState(''),[preview,setPreview]=useState(null),[selected,setSelected]=useState([]);
-  const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
-  const [pendingDeleteId,setPendingDeleteId]=useState(null);
-  const load=()=>Promise.all([request('/knowledge'),request('/exams')]).then(([d,e])=>{setDocs(d.items);setItems(e.items);setForm(f=>({...f,document_id:f.document_id||d.items[0]?.id||''}))});
+function TeacherExams() {
+  const { showToast } = useContext(ToastContext);
+  const [docs, setDocs] = useState([]), [items, setItems] = useState([]), [form, setForm] = useState({ document_id: '', chapter: '全文', title: '', count: 5, difficulty: '中等', question_types: ['choice', 'fill', 'solution'] }), [loading, setLoading] = useState(false), [msg, setMsg] = useState(''), [preview, setPreview] = useState(null), [selected, setSelected] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const load = () => Promise.all([request('/knowledge'), request('/exams')]).then(([d, e]) => { setDocs(d.items); setItems(e.items); setForm(f => ({ ...f, document_id: f.document_id || d.items[0]?.id || '' })) });
   useEffect(() => { load(); }, []);
-  const toggleType=type=>setForm(f=>{const exists=f.question_types.includes(type);const next=exists?f.question_types.filter(x=>x!==type):[...f.question_types,type];return {...f,question_types:next.length?next:[type]}});
-  const openPreview=exam=>{setPreview(exam);setSelected((exam.questions||[]).map(q=>q.id));setMsg('')};
-  const generate=async e=>{e.preventDefault();setLoading(true);setMsg('');try{const exam=await post('/exams/generate',{...form,count:Number(form.count)});setMsg('习题生成成功，请预览并勾选后发布。');openPreview(exam);load()}catch(e){setMsg(e.message)}finally{setLoading(false)}};
-  const toggleQuestion=id=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
-  const publish=async (exam=preview)=>{if(!exam)return;if(!selected.length){setMsg('请至少勾选一道习题再发布。');return}await post(`/exams/${exam.id}/publish`,{question_ids:selected});setMsg('已发布到学生端');setPreview(null);setSelected([]);load()};
-  const remove=(id)=>{setPendingDeleteId(id);setShowDeleteConfirm(true);};
-  const confirmDelete=async()=>{const id=pendingDeleteId;if(!id)return;setShowDeleteConfirm(false);await request(`/exams/${id}`,{method:'DELETE'});if(preview?.id===id){setPreview(null);setSelected([])}load();setPendingDeleteId(null);};
-  return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15}/>AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e=>setForm({...form,document_id:e.target.value})}>{docs.map(d=><option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e=>setForm({...form,chapter:e.target.value})} placeholder="例如：第三章 传输层"/></label><label>习题标题<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="留空将自动生成"/></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e=>setForm({...form,count:e.target.value})}/></label><label>难度<select value={form.difficulty} onChange={e=>setForm({...form,difficulty:e.target.value})}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice','单选题'],['fill','填空题'],['solution','解答题']].map(([type,label])=><label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={()=>toggleType(type)}/>{label}</label>)}</div><button className="primary" disabled={loading||!form.document_id}><Sparkles/>{loading?'DeepSeek 正在生成…':'生成习题'}</button>{msg&&<div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length===0?<div className="empty">还没有生成习题</div>:items.map(exam=><article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList/></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status==='published'?'已发布':'草稿'}</em></div><div className="exam-actions">{exam.status!=='published'&&<button className="publish" onClick={()=>openPreview(exam)}>预览发布</button>}<button className="trash" onClick={()=>remove(exam.id)}><Trash2/></button></div></article>)}</section></div>{preview&&<section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={()=>setSelected(preview.questions.map(q=>q.id))}>全选</button><button className="secondary-btn" onClick={()=>setSelected([])}>清空</button><button className="primary" onClick={()=>publish(preview)}>发布所选</button><button onClick={()=>setPreview(null)}><X/></button></div></div><div className="preview-questions">{preview.questions.map((q,i)=><article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={()=>toggleQuestion(q.id)}/><span>{i+1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length>0&&<ul>{q.options.map(o=><li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis&&<p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}
+  const toggleType = type => setForm(f => { const exists = f.question_types.includes(type); const next = exists ? f.question_types.filter(x => x !== type) : [...f.question_types, type]; return { ...f, question_types: next.length ? next : [type] } });
+  const openPreview = exam => { setPreview(exam); setSelected((exam.questions || []).map(q => q.id)); setMsg('') };
+  const generate = async e => { e.preventDefault(); setLoading(true); setMsg(''); try { const exam = await post('/exams/generate', { ...form, count: Number(form.count) }); setMsg('习题生成成功，请预览并勾选后发布。'); openPreview(exam); load() } catch (e) { setMsg(e.message) } finally { setLoading(false) } };
+  const toggleQuestion = id => setSelected(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  const publish = async (exam = preview) => { if (!exam) return; if (!selected.length) { setMsg('请至少勾选一道习题再发布。'); return } await post(`/exams/${exam.id}/publish`, { question_ids: selected }); setMsg('已发布到学生端'); setPreview(null); setSelected([]); load() };
+  const remove = (id) => { setPendingDeleteId(id); setShowDeleteConfirm(true); };
+  const confirmDelete = async () => { const id = pendingDeleteId; if (!id) return; setShowDeleteConfirm(false); await request(`/exams/${id}`, { method: 'DELETE' }); if (preview?.id === id) { setPreview(null); setSelected([]) } load(); setPendingDeleteId(null); showToast('习题已删除 ✅'); };
+  return <><section className="knowledge-head"><div><span className="eyebrow"><ClipboardList size={15} />AI 出题</span><h1>习题生成与发布</h1><p>选择知识库文件和章节，由 DeepSeek 生成单选题、填空题和解答题；教师预览勾选后再发布给学生。</p></div></section><div className="exam-layout"><form className="panel exam-form" onSubmit={generate}><div className="panel-head"><div><h3>生成新习题</h3><p>题目答案严格来自所选资料</p></div></div><label>知识库文件<select value={form.document_id} onChange={e => setForm({ ...form, document_id: e.target.value })}>{docs.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label><label>章节或范围<input value={form.chapter} onChange={e => setForm({ ...form, chapter: e.target.value })} placeholder="例如：第三章 传输层" /></label><label>习题标题<input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="留空将自动生成" /></label><div className="form-row"><label>题目数量<input type="number" min="1" max="20" value={form.count} onChange={e => setForm({ ...form, count: e.target.value })} /></label><label>难度<select value={form.difficulty} onChange={e => setForm({ ...form, difficulty: e.target.value })}><option>简单</option><option>中等</option><option>困难</option></select></label></div><div className="type-picker"><b>题型</b>{[['choice', '单选题'], ['fill', '填空题'], ['solution', '解答题']].map(([type, label]) => <label key={type}><input type="checkbox" checked={form.question_types.includes(type)} onChange={() => toggleType(type)} />{label}</label>)}</div><button className="primary" disabled={loading || !form.document_id}><Sparkles />{loading ? 'DeepSeek 正在生成…' : '生成习题'}</button>{msg && <div className="notice">{msg}</div>}</form><section className="panel exam-list"><div className="panel-head"><div><h3>习题列表</h3><p>共 {items.length} 套习题</p></div></div>{items.length === 0 ? <div className="empty">还没有生成习题</div> : items.map(exam => <article className="exam-card" key={exam.id}><div className="exam-card-icon"><ClipboardList /></div><div><h4>{exam.title}</h4><p>{exam.document_name} - {exam.chapter}</p><span>{exam.questions.length} 题</span><span>{exam.difficulty}</span><em className={exam.status}>{exam.status === 'published' ? '已发布' : '草稿'}</em></div><div className="exam-actions">{exam.status !== 'published' && <button className="publish" onClick={() => openPreview(exam)}>预览发布</button>}<button className="trash" onClick={() => remove(exam.id)}><Trash2 /></button></div></article>)}</section></div>{preview && <section className="panel exam-preview"><div className="panel-head"><div><h3>预览并选择发布题目</h3><p>{preview.title} - 已选择 {selected.length}/{preview.questions.length} 题</p></div><div className="preview-actions"><button className="secondary-btn" onClick={() => setSelected(preview.questions.map(q => q.id))}>全选</button><button className="secondary-btn" onClick={() => setSelected([])}>清空</button><button className="primary" onClick={() => publish(preview)}>发布所选</button><button onClick={() => setPreview(null)}><X /></button></div></div><div className="preview-questions">{preview.questions.map((q, i) => <article className="preview-question" key={q.id}><label className="preview-check"><input type="checkbox" checked={selected.includes(q.id)} onChange={() => toggleQuestion(q.id)} /><span>{i + 1}</span><em>{questionTypeText(q.type)}</em></label><div><h4>{q.question}</h4>{q.options?.length > 0 && <ul>{q.options.map(o => <li key={o}>{o}</li>)}</ul>}<p><b>答案：</b>{q.answer}</p>{q.analysis && <p><b>解析：</b>{q.analysis}</p>}<small>{q.knowledge_point}</small></div></article>)}</div></section>}
     {showDeleteConfirm && (
       <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteId(null); }}>
         <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1901,5 +1905,19 @@ const toggleMasteryGroup = (groupName) => {
     </>
   );
 }
-function App(){const isLoginPage=location.pathname==='/login';const [user,setUser]=useState(()=>{if(isLoginPage)return null;try{return JSON.parse(localStorage.getItem('mainrag-user'))}catch{return null}});useEffect(()=>{if(!user&&location.pathname!='/login')history.replaceState({},'','/login')},[user]);return user&&!isLoginPage?<Shell user={user} onLogout={()=>{localStorage.removeItem('mainrag-user');history.replaceState({},'','/login');setUser(null)}}/>:<Login onLogin={setUser}/>}
+function App() {
+  const isLoginPage = location.pathname === '/login';
+  const [user, setUser] = useState(() => {
+    if (isLoginPage) return null;
+    try { return JSON.parse(localStorage.getItem('mainrag-user')); } catch { return null; }
+  });
+  useEffect(() => {
+    if (!user && location.pathname !== '/login') history.replaceState({}, '', '/login');
+  }, [user]);
+  return (
+    <ToastProvider>
+      {user && !isLoginPage ? <Shell user={user} onLogout={() => { localStorage.removeItem('mainrag-user'); history.replaceState({}, '', '/login'); setUser(null); }} /> : <Login onLogin={setUser} />}
+    </ToastProvider>
+  );
+}
 createRoot(document.getElementById('root')).render(<App/>);
