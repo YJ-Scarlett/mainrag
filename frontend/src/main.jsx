@@ -843,19 +843,369 @@ function Knowledge({ user }) {
     )}
   </>
 }
+function ReinforcementPractice({
+  topic,
+  onBack,
+}) {
+  const [practice, setPractice] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+
+  const startPractice = async () => {
+    setLoading(true);
+    setError('');
+    setPractice(null);
+    setCurrentIndex(0);
+    setAnswer('');
+    setFeedback(null);
+    setCorrectCount(0);
+    setFinished(false);
+
+    try {
+      const data = await post(
+        '/reinforcement/generate',
+        {
+          knowledge_point: topic,
+          count: 3,
+        }
+      );
+
+      setPractice(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    startPractice();
+  }, [topic]);
+
+  const questions = practice?.questions || [];
+  const currentQuestion = questions[currentIndex];
+  const total = questions.length;
+
+  const submitAnswer = async () => {
+    if (!answer.trim() || !currentQuestion) {
+      setError('请先选择或输入答案。');
+      return;
+    }
+
+    setChecking(true);
+    setError('');
+
+    try {
+      const result = await post(
+        '/reinforcement/check',
+        {
+          session_id: practice.session_id,
+          question_id: currentQuestion.id,
+          answer,
+        }
+      );
+
+      setFeedback(result);
+
+      if (result.correct) {
+        setCorrectCount(value => value + 1);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const goNext = () => {
+    if (currentIndex >= total - 1) {
+      setFinished(true);
+      return;
+    }
+
+    setCurrentIndex(value => value + 1);
+    setAnswer('');
+    setFeedback(null);
+    setError('');
+  };
+
+  return (
+    <section className="reinforcement-page">
+
+      <button
+        type="button"
+        className="reinforcement-back"
+        onClick={onBack}
+      >
+        ← 返回学情分析
+      </button>
+
+      <div className="panel reinforcement-card">
+
+        <div className="reinforcement-heading">
+          <span className="eyebrow">
+            <Sparkles size={15} />
+            专项巩固练习
+          </span>
+
+          <h1>{topic}</h1>
+
+          <p>
+            本练习不会计入错题本和学情分析。
+          </p>
+        </div>
+
+        {loading && (
+          <div className="reinforcement-loading">
+            <Sparkles />
+            <h3>正在生成巩固习题</h3>
+            <p>系统正在从课程知识库检索相关内容……</p>
+          </div>
+        )}
+
+        {!loading && error && !practice && (
+          <div className="reinforcement-error">
+            <AlertCircle />
+            <p>{error}</p>
+
+            <button
+              type="button"
+              className="primary"
+              onClick={startPractice}
+            >
+              重新生成
+            </button>
+          </div>
+        )}
+
+        {!loading && practice && finished && (
+          <div className="reinforcement-summary">
+            <CheckCircle2 />
+
+            <h2>专项巩固完成</h2>
+
+            <p>{topic}</p>
+
+            <strong>
+              {correctCount} / {total}
+            </strong>
+
+            <span>
+              正确率：
+              {total
+                ? Math.round(
+                    correctCount / total * 100
+                  )
+                : 0}
+              %
+            </span>
+
+            <div className="reinforcement-summary-actions">
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={startPractice}
+              >
+                再练一组
+              </button>
+
+              <button
+                type="button"
+                className="primary"
+                onClick={onBack}
+              >
+                返回学情分析
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading &&
+          practice &&
+          !finished &&
+          currentQuestion && (
+            <div className="reinforcement-question">
+
+              <div className="reinforcement-progress-head">
+                <span>
+                  第 {currentIndex + 1} / {total} 题
+                </span>
+
+                <em>
+                  {currentQuestion.type === 'choice'
+                    ? '单选题'
+                    : '填空题'}
+                </em>
+              </div>
+
+              <div className="reinforcement-progress">
+                <i
+                  style={{
+                    width:
+                      `${(currentIndex + 1) / total * 100}%`,
+                  }}
+                />
+              </div>
+
+              <h2>{currentQuestion.question}</h2>
+
+              {currentQuestion.type === 'choice' ? (
+                <div className="reinforcement-options">
+                  {currentQuestion.options.map(option => (
+                    <button
+                      type="button"
+                      key={option}
+                      disabled={Boolean(feedback)}
+                      className={
+                        answer === option
+                          ? 'selected'
+                          : ''
+                      }
+                      onClick={() => setAnswer(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  className="reinforcement-fill-input"
+                  value={answer}
+                  disabled={Boolean(feedback)}
+                  placeholder="请输入答案"
+                  onChange={event =>
+                    setAnswer(event.target.value)
+                  }
+                  onKeyDown={event => {
+                    if (
+                      event.key === 'Enter' &&
+                      !feedback
+                    ) {
+                      submitAnswer();
+                    }
+                  }}
+                />
+              )}
+
+              {error && (
+                <div className="error">
+                  {error}
+                </div>
+              )}
+
+              {feedback && (
+                <div
+                  className={
+                    `reinforcement-feedback ${
+                      feedback.correct
+                        ? 'correct'
+                        : 'wrong'
+                    }`
+                  }
+                >
+                  <div>
+                    {feedback.correct
+                      ? <CheckCircle2 />
+                      : <AlertCircle />}
+
+                    <strong>
+                      {feedback.correct
+                        ? '回答正确'
+                        : '回答错误'}
+                    </strong>
+                  </div>
+
+                  {!feedback.correct && (
+                    <p>
+                      <b>你的答案：</b>
+                      {feedback.student_answer}
+                    </p>
+                  )}
+
+                  <p>
+                    <b>正确答案：</b>
+                    {feedback.correct_answer}
+                  </p>
+
+                  <p>
+                    <b>解析：</b>
+                    {feedback.analysis}
+                  </p>
+                </div>
+              )}
+
+              <div className="reinforcement-actions">
+                {!feedback ? (
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      checking ||
+                      !answer.trim()
+                    }
+                    onClick={submitAnswer}
+                  >
+                    {checking
+                      ? '正在判定…'
+                      : '提交答案'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={goNext}
+                  >
+                    {currentIndex >= total - 1
+                      ? '查看练习结果'
+                      : '下一题'}
+                    <ChevronRight />
+                  </button>
+                )}
+              </div>
+
+            </div>
+          )}
+
+      </div>
+    </section>
+  );
+}
 function Analysis({ role }) {
   const [data, setData] = useState(null);
-
-  // 当前选中的知识点掌握度分类
-  // all：全部
-  // weak：薄弱
-  // consolidating：待巩固
-  // mastered：已掌握
   const [masteryFilter, setMasteryFilter] = useState('all');
-
-  // 当前鼠标悬停的知识点，用于整行高亮
   const [hoveredTopic, setHoveredTopic] = useState('');
+const [practiceTopic, setPracticeTopic] = useState('');
+const analysisScrollRef = useRef(0);
+const openReinforcement = (topic) => {
+  if (role !== 'student') return;
 
+  analysisScrollRef.current = window.scrollY;
+
+  setPracticeTopic(topic);
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  });
+};
+
+
+const closeReinforcement = () => {
+  setPracticeTopic('');
+
+  requestAnimationFrame(() => {
+    window.scrollTo({
+      top: analysisScrollRef.current,
+      behavior: 'auto',
+    });
+  });
+};
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('mainrag-user'));
 
@@ -1053,6 +1403,14 @@ const renderMasteryRowBackground = (props) => {
     />
   );
 };
+if (practiceTopic && role === 'student') {
+  return (
+    <ReinforcementPractice
+      topic={practiceTopic}
+      onBack={closeReinforcement}
+    />
+  );
+}
   return <>
     <section className="analysis-title">
       <div>
@@ -1252,10 +1610,53 @@ const renderMasteryRowBackground = (props) => {
           <h3 style={{ margin: 0 }}>智能学习建议</h3>
         </div>
         <p>{data?.suggestion || '暂无足够学习记录。'}</p>
-        <div className="insight-list">
-          {mastery.slice(0, 3).map((m, i) => <div key={m.topic}><span>{i + 1}</span><b>{m.topic}<small>{m.score < 70 ? '建议重点复习' : m.score < 85 ? '继续巩固' : '掌握良好'}</small></b><em>{m.score}%</em></div>)}
-        </div>
-      </section>
+<div className="insight-list">
+  {mastery.slice(0, 3).map((m, i) => {
+
+    const itemContent = (
+      <>
+        <span>{i + 1}</span>
+
+        <b>
+          {m.topic}
+
+          <small>
+            {role === 'student'
+              ? '点击生成专项巩固习题'
+              : m.score < 70
+                ? '建议重点复习'
+                : m.score < 85
+                  ? '继续巩固'
+                  : '掌握良好'}
+          </small>
+        </b>
+
+        <em>{m.score}%</em>
+
+        {role === 'student' && (
+          <ChevronRight />
+        )}
+      </>
+    );
+
+    return role === 'student' ? (
+      <button
+        type="button"
+        key={m.topic}
+        className="insight-practice-item"
+        onClick={() =>
+          openReinforcement(m.topic)
+        }
+      >
+        {itemContent}
+      </button>
+    ) : (
+      <div key={m.topic}>
+        {itemContent}
+      </div>
+    );
+  })}
+</div>      </section>
     </div>
     {role==='teacher'&&<section className="panel student-panel">
       <div className="panel-head"><div><h3>学生概览</h3><p>班级个体学习状态</p></div></div>

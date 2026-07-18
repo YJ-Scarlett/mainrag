@@ -53,3 +53,295 @@
 .primary:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(90,120,255,0.30);transition:transform 0.2s ease,box-shadow 0.2s ease}.view-doc:hover{transform:scale(1.04);transition:transform 0.2s ease}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .toast-container{position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:99999;pointer-events:none}.toast-message{background:#ffffff;padding:12px 24px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);font-size:14px;font-weight:500;color:#1a2332;border:1px solid #e8ecf3;pointer-events:auto;animation:toastFadeIn 0.3s ease}.toast-message.error{border-left:4px solid #d9534f}@keyframes toastFadeIn{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+                                                                                                                                                                                                                                                                                                                                                                                                          /* =========================================================
+   智能学习建议：可点击生成专项练习
+   ========================================================= */
+
+.insight-practice-item {
+  width: 100%;
+  border: 1px solid #e6eaf2;
+  background: #f8f9fc;
+  border-radius: 12px;
+  padding: 13px 14px;
+  display: grid;
+  grid-template-columns: 28px 1fr auto 18px;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.insight-practice-item:hover {
+  border-color: #9cacef;
+  background: #f1f4ff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(75, 99, 190, 0.1);
+}
+
+.insight-practice-item > span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #edf1ff;
+  color: #5872e8;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+
+.insight-practice-item > b {
+  min-width: 0;
+  color: #263043;
+  font-size: 13px;
+}
+
+.insight-practice-item > b small {
+  display: block;
+  margin-top: 4px;
+  color: #7f8aa0;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.insight-practice-item > em {
+  color: #5872e8;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.insight-practice-item > svg {
+  width: 16px;
+  height: 16px;
+  color: #8d99ad;
+}
+
+
+/* =========================================================
+   专项巩固练习子窗口
+   ========================================================= */
+
+.reinforcement-page {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.reinforcement-back {
+  border: 0;
+  background: transparent;
+  color: #5872e8;
+  padding: 6px 2px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+.reinforcement-back:hover {
+  text-decoration: underline;
+}
+
+.reinforcement-card {
+  min-height: 560px;
+  padding: 30px;
+}
+
+.reinforcement-heading {
+  padding-bottom: 22px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.reinforcement-heading h1 {
+  margin: 15px 0 7px;
+  font-size: 25px;
+}
+
+.reinforcement-heading p {
+  margin: 0;
+  color: #8993a5;
+  font-size: 13px;
+}
+
+.reinforcement-loading,
+.reinforcement-error,
+.reinforcement-summary {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.reinforcement-loading > svg,
+.reinforcement-summary > svg {
+  width: 50px;
+  height: 50px;
+  color: #5872e8;
+  margin-bottom: 14px;
+}
+
+.reinforcement-error > svg {
+  width: 48px;
+  height: 48px;
+  color: #d8646a;
+  margin-bottom: 12px;
+}
+
+.reinforcement-question {
+  max-width: 780px;
+  margin: 26px auto 0;
+}
+
+.reinforcement-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #7b8699;
+  font-size: 12px;
+}
+
+.reinforcement-progress-head em {
+  padding: 4px 9px;
+  background: #edf1ff;
+  border-radius: 12px;
+  color: #5872e8;
+  font-style: normal;
+}
+
+.reinforcement-progress {
+  height: 7px;
+  margin: 10px 0 28px;
+  border-radius: 5px;
+  background: #edf0f5;
+  overflow: hidden;
+}
+
+.reinforcement-progress i {
+  display: block;
+  height: 100%;
+  background: #5872e8;
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.reinforcement-question h2 {
+  margin: 0 0 24px;
+  color: #263043;
+  font-size: 20px;
+  line-height: 1.7;
+}
+
+.reinforcement-options {
+  display: grid;
+  gap: 11px;
+}
+
+.reinforcement-options button {
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid #e0e5ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #455064;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.reinforcement-options button:hover:not(:disabled) {
+  border-color: #879bef;
+  background: #f5f7ff;
+}
+
+.reinforcement-options button.selected {
+  border-color: #5872e8;
+  background: #edf1ff;
+  color: #405ac5;
+  font-weight: 600;
+}
+
+.reinforcement-fill-input {
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid #dfe4ed;
+  border-radius: 11px;
+  outline: none;
+}
+
+.reinforcement-fill-input:focus {
+  border-color: #5872e8;
+  box-shadow: 0 0 0 3px rgba(88, 114, 232, 0.12);
+}
+
+.reinforcement-feedback {
+  margin-top: 20px;
+  padding: 17px;
+  border-radius: 13px;
+}
+
+.reinforcement-feedback.correct {
+  background: #edf9f4;
+  border: 1px solid #bfe9d7;
+  color: #287c5c;
+}
+
+.reinforcement-feedback.wrong {
+  background: #fff3f4;
+  border: 1px solid #f0c8cc;
+  color: #a94a53;
+}
+
+.reinforcement-feedback > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+
+.reinforcement-feedback p {
+  margin: 7px 0 0;
+  line-height: 1.7;
+}
+
+.reinforcement-actions {
+  margin-top: 22px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reinforcement-summary strong {
+  margin-top: 14px;
+  color: #5872e8;
+  font-size: 42px;
+}
+
+.reinforcement-summary > span {
+  margin-top: 6px;
+  color: #7f899b;
+}
+
+.reinforcement-summary-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+@media (max-width: 768px) {
+  .reinforcement-card {
+    padding: 20px 15px;
+  }
+
+  .reinforcement-question h2 {
+    font-size: 17px;
+  }
+
+  .reinforcement-summary-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .reinforcement-summary-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
