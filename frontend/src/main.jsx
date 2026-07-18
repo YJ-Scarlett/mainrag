@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, Camera, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, Eye, File, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Music, Search, Send, Sparkles, Trash2, Upload, Users, Video, X} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import './styles.css';
+import './digital-human.css';
 import { RefreshCw } from 'lucide-react';
 import EmptyFolder from './assets/illustrations/empty-folder.svg';
 import EmptyQuestions from './assets/illustrations/empty-questions.svg';
@@ -572,13 +573,127 @@ function parseMediaCaptions(content=''){
   }
   return rows;
 }
+function DigitalHumanKnowledgeAsk({user,selectedDoc}){
+  const {showToast}=useContext(ToastContext);
+  const [input,setInput]=useState('');
+  const [answer,setAnswer]=useState('');
+  const [sources,setSources]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [status,setStatus]=useState('等待提问');
+  const avatarFrameRef=useRef(null);
+  const avatarUrl=import.meta.env.VITE_AVATAR_URL||'http://localhost:8282/ui/index.html';
+  const cleanAvatarText=text=>String(text||'').replace(/\*\*/g,'').replace(/[#>`]/g,'').replace(/\n{3,}/g,'\n\n').trim();
+  const sendToAvatar=text=>{
+    const cleaned=cleanAvatarText(text);
+    if(!cleaned){showToast('暂无可讲解内容','error');return}
+    setStatus('正在发送给数字人');
+    try{
+      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*');
+      navigator.clipboard?.writeText(cleaned).catch(()=>{});
+      setStatus('已发送给数字人讲解');
+      showToast('数字人讲解已发送');
+    }catch{
+      setStatus('发送失败，可手动复制讲解稿到数字人输入框');
+    }
+  };
+  const ask=async(q=input)=>{
+    const question=String(q||'').trim();
+    if(!question||loading)return;
+    const scopedQuestion=selectedDoc?`请优先结合资料《${selectedDoc.name}》回答：${question}`:question;
+    setInput('');
+    setAnswer('');
+    setSources([]);
+    setLoading(true);
+    setStatus('正在检索知识库并生成回答');
+    let pendingText='';
+    let updateTimer=null;
+    const flush=()=>{
+      if(pendingText){
+        setAnswer(text=>text+pendingText);
+        pendingText='';
+      }
+      updateTimer=null;
+    };
+    const schedule=()=>{if(!updateTimer)updateTimer=setTimeout(flush,30)};
+    try{
+      let role='';
+      try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
+      const response=await fetch(API+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',...(role?{'X-Role':role}:{})},body:JSON.stringify({message:scopedQuestion,student:user.name})});
+      if(!response.ok){
+        let data={};
+        try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}
+        throw new Error(data.detail||'请求失败');
+      }
+      const reader=response.body.getReader();
+      const decoder=new TextDecoder('utf-8');
+      let buffer='';
+      while(true){
+        const {value,done}=await reader.read();
+        if(done)break;
+        buffer+=decoder.decode(value,{stream:true});
+        const events=buffer.split('\n\n');
+        buffer=events.pop()||'';
+        for(const raw of events){
+          const line=raw.split('\n').find(x=>x.startsWith('data:'));
+          if(!line)continue;
+          const jsonStr=line.slice(5).trim();
+          if(jsonStr==='[DONE]')continue;
+          try{
+            const event=JSON.parse(jsonStr);
+            if(event.type==='delta'){pendingText+=event.content||'';schedule()}
+            if(event.type==='sources')setSources(event.sources||[]);
+            if(event.type==='done'){
+              if(updateTimer)clearTimeout(updateTimer);
+              pendingText='';
+              setAnswer(event.answer||'');
+              setSources(event.sources||[]);
+              setStatus('回答完成，正在驱动数字人讲解');
+              setTimeout(()=>sendToAvatar(event.answer||''),0);
+            }
+          }catch(e){
+            console.warn('解析流式事件失败:',jsonStr);
+          }
+        }
+      }
+      if(updateTimer)clearTimeout(updateTimer);
+      if(pendingText)setAnswer(text=>text+pendingText);
+    }catch(error){
+      if(updateTimer)clearTimeout(updateTimer);
+      setAnswer(error.message||'回答生成失败');
+      setStatus('回答生成失败');
+    }finally{
+      setLoading(false);
+    }
+  };
+  const presets=selectedDoc?[`讲解这份资料的核心内容`,`根据这份资料出一道例题并讲解`,`总结这份资料的易错点`]:['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','数据库事务 ACID 是什么？'];
+  return <section className="panel kb-avatar-panel"><div className="kb-avatar-head"><div><span className="eyebrow"><Video size={14}/>数字人知识问答</span><h3>在知识库页面直接交互讲解</h3><p>{selectedDoc?`当前优先参考：${selectedDoc.name}`:'先启动 OpenAvatarChat，然后在这里提问即可。'}</p></div><small>{status}</small></div><div className="kb-avatar-grid"><div className="kb-avatar-stage"><iframe ref={avatarFrameRef} src={avatarUrl} title="知问数字人"/></div><div className="kb-avatar-dialog"><div className="kb-avatar-presets">{presets.map(item=><button type="button" key={item} onClick={()=>ask(item)} disabled={loading}>{item}</button>)}</div><div className="kb-avatar-answer">{answer?<MarkdownText text={answer} sources={sources}/>:<p>输入问题后，系统会先调用知识库问答生成讲解稿，再让数字人直接开口讲解。</p>}</div>{sources.length>0&&<div className="kb-avatar-sources"><b>参考来源</b>{sources.slice(0,3).map((s,i)=><span key={`${s.document}-${i}`}>{i+1}. {s.document} · {sourceLocationLabel(s)}</span>)}</div>}<div className="kb-avatar-input"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask()}}} placeholder="输入要让数字人讲解的问题，Enter 发送..."/><button type="button" onClick={()=>ask()} disabled={loading}><Send size={16}/>{loading?'生成中':'发送'}</button></div><button className="secondary-btn kb-avatar-resend" type="button" onClick={()=>sendToAvatar(answer)} disabled={!answer}>重新播放当前讲解</button></div></div></section>
+}
 function Chat({user}){
   const { showToast } = useContext(ToastContext);
   const welcome={role:'ai',text:`你好，${user.name}！我是知问课堂智能体。你可以问我课程概念、知识区别或应用问题，我会从课程知识库中寻找依据。`};
   const [messages,setMessages]=useState([welcome]),[input,setInput]=useState(''),[loading,setLoading]=useState(false),[photoLoading,setPhotoLoading]=useState(false),[photoPreview,setPhotoPreview]=useState(null),[historyItems,setHistoryItems]=useState([]),[activeHistory,setActiveHistory]=useState('');
+  const [answerMode,setAnswerMode]=useState('text');
+  const [avatarText,setAvatarText]=useState('');
+  const [avatarStatus,setAvatarStatus]=useState('等待生成讲解内容');
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
   const [pendingDeleteItem,setPendingDeleteItem]=useState(null);
   const photoInputRef=useRef(null);
+  const avatarFrameRef=useRef(null);
+  const avatarUrl=import.meta.env.VITE_AVATAR_URL||'http://localhost:8282/ui/index.html';
+  const sendToAvatar=(text)=>{
+    const cleaned=String(text||'').replace(/\*\*/g,'').replace(/[#>`]/g,'').trim();
+    if(!cleaned){showToast('暂无可讲解内容','error');return}
+    setAvatarText(cleaned);
+    setAvatarStatus('正在发送给数字人讲解');
+    try{
+      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*');
+      navigator.clipboard?.writeText(cleaned).catch(()=>{});
+      setAvatarStatus('已发送讲解文本。如果数字人没有自动开口，请在下方数字人输入框粘贴发送。');
+      showToast('数字人讲解已准备');
+    }catch{
+      setAvatarStatus('发送失败，已保留讲解文本，可手动复制到数字人输入框。');
+    }
+  };
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
   const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(() => { loadHistory(); }, [user.name]);
@@ -659,6 +774,7 @@ function Chat({user}){
                 pendingText = '';
               }
               appendToLastAi({ text: event.answer, sources: event.sources || [], streaming: false });
+              if(answerMode==='avatar')setTimeout(()=>sendToAvatar(event.answer),0);
             }
           } catch (e) {
             console.warn('解析流式事件失败:', jsonStr);
@@ -709,7 +825,7 @@ function Chat({user}){
       setPhotoLoading(false);
     }
   };
-  return <div className="chat-layout"><section className="chat-box"><div className="chat-top"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 流式输出 · 支持拍照搜题</small></div></div><div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div><div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>提问小技巧</b><p>问题越具体，检索到的课程内容越准确；拍照搜题建议拍清题干和选项。</p></div></aside>
+  return <div className="chat-layout digital-chat-layout"><section className="chat-box"><div className="chat-top chat-top-modes"><div className="bot-avatar"><Bot/></div> <div><b>课程智能体</b><small><i/>在线 · 基于知识库回答 · 支持数字人讲解</small></div><div className="answer-mode-tabs"><button className={answerMode==='text'?'active':''} onClick={()=>setAnswerMode('text')}><MessageCircle size={16}/>文本回答</button><button className={answerMode==='avatar'?'active':''} onClick={()=>setAnswerMode('avatar')}><Video size={16}/>数字人讲解</button></div></div>{answerMode==='text'?<div className="messages">{messages.map((m,i)=><div className={'message '+m.role} key={i}>{m.role==='ai'&&<div className="avatar"><Sparkles/></div>}<div><div className={'bubble '+(m.streaming?'streaming':'')}>{m.image&&<img className="chat-photo-thumb" src={m.image} alt="拍照搜题图片"/>}{m.ocrText&&<div className="chat-ocr-text"><b>识别文字</b><p>{m.ocrText}</p></div>}{m.role==='ai'?<MarkdownText text={m.text} sources={m.sources||[]} onSourceClick={openSource}/>:m.text}{m.streaming&&<span className="stream-cursor">|</span>}</div>{m.sources?.length>0&&<div className="sources"><b><FileText/>参考来源</b>{m.sources.map((s,j)=><button className="source-link" key={j} onClick={()=>openSource(s)} title={`来源 ${j+1}：点击跳转到对应文档和位置`}><i className="source-index">{j+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span><em>{Math.round(s.score*100)}%</em></button>)}</div>}</div></div>)}</div>:<div className="avatar-lesson"><div className="avatar-stage"><iframe ref={avatarFrameRef} src={avatarUrl} title="数字人讲解"/></div><div className="avatar-script"><div><b>数字人讲解稿</b><small>{avatarStatus}</small></div><p>{avatarText||'在下方输入问题并发送，知识库回答生成后会自动发送给数字人讲解。'}</p><button className="secondary-btn" type="button" onClick={()=>sendToAvatar(avatarText)}>重新发送讲解</button></div></div>}<div className="composer">{photoPreview&&<div className="photo-preview-card"><img src={photoPreview.url} alt={photoPreview.name}/><div><b>{photoPreview.name}</b><small>{photoPreview.status}</small><p>{photoPreview.ocrText||'正在识别图片文字，结果会显示在对话中的图片下方。'}</p></div><button type="button" onClick={()=>{setPhotoPreview(old=>{if(old?.url)URL.revokeObjectURL(old.url);return null})}}><X/></button></div>}<div><button className="photo-search-btn" type="button" onClick={()=>photoInputRef.current?.click()} disabled={loading||photoLoading} title="拍照搜题 / 上传题目图片"><Camera/></button><input ref={photoInputRef} className="photo-search-input" type="file" accept="image/*" capture="environment" onChange={photoSearch}/><textarea placeholder={photoLoading?'正在识别题目，请稍候…':answerMode==='avatar'?'输入问题，生成后由数字人讲解…':'输入你的问题，Enter 发送…'} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button onClick={()=>send()} disabled={loading||photoLoading}><Send/></button></div><small>{answerMode==='avatar'?'数字人服务需先启动 OpenAvatarChat：localhost:8282':'回答由课程知识库生成，支持 Markdown 渲染；拍照搜题会先 OCR 识别，再检索知识库解答'}</small></div></section><aside className="suggestions chat-side"><div className="side-block"><h3><Sparkles/>试试这样问</h3>{['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','什么是数据库事务的 ACID？','IPv4 与 IPv6 的主要区别？'].map(x=><button key={x} onClick={()=>send(x)}>{x}<ChevronRight/></button>)}</div><div className="side-block history-block"><h3><MessageCircle/>历史问答</h3>{historyItems.length===0?<p className="empty-history">暂无历史记录，提问后会自动保存。</p>:historyItems.map(item=><button className={activeHistory===item.id?'active':''} key={item.id} onClick={()=>openHistory(item)}><span className="history-text"><b>{item.question}</b><small>{item.topic} · {item.at?.replace('T',' ')}</small></span><i className="history-delete" title="删除历史问答" onClick={e=>deleteHistory(e,item)}><Trash2 size={15}/></i></button>)}</div><div className="tip"><BookOpen/><b>数字人讲解</b><p>切到数字人讲解后，问题仍由知识库回答，回答完成后会发送给数字人窗口播放。</p></div></aside>
   {showDeleteConfirm && (
     <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDeleteItem(null); }}>
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -796,6 +912,7 @@ function Knowledge({ user }) {
       <div><FileText /><span><b>{filteredDocs.reduce((n, d) => n + d.chunks, 0)}</b><small>向量片段</small></span></div>
       <div><Sparkles /><span><b>{filteredDocs.filter(d => d.preview_status === 'processing').length}</b><small>预览处理中</small></span></div>
     </div>
+    <DigitalHumanKnowledgeAsk user={user} selectedDoc={selected} />
     <div className="knowledge-search">
       <input type="text" placeholder="搜索资料名称..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
       <button className="search-btn" onClick={clearSearch} title="清空搜索">{searchTerm ? <X size={18} /> : <Search size={18} />}</button>
