@@ -59,14 +59,17 @@
 
 .insight-practice-item {
   width: 100%;
+  margin: 0;
   border: 1px solid #e6eaf2;
   background: #f8f9fc;
   border-radius: 12px;
   padding: 13px 14px;
+
   display: grid;
-  grid-template-columns: 28px 1fr auto 18px;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
+
   text-align: left;
   color: inherit;
   transition: all 0.2s ease;
@@ -102,13 +105,6 @@
   color: #7f8aa0;
   font-size: 11px;
   font-weight: 400;
-}
-
-.insight-practice-item > em {
-  color: #5872e8;
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 700;
 }
 
 .insight-practice-item > svg {
@@ -344,4 +340,44 @@
     width: 100%;
     justify-content: center;
   }
+}
+/* 智能学习建议：前五个知识点 */
+.insight-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* 提高选择器优先级，避免旧的 .insight-list > div 样式干扰 */
+.insight-list .insight-practice-item {
+  display: grid;
+  margin: 0;
+}
+
+.insight-practice-item > b {
+  min-width: 0;
+}
+
+.insight-practice-item > b small {
+  display: block;
+  margin-top: 4px;
+}
+
+/* 教师端仅展示，不可点击 */
+.insight-practice-item-static {
+  cursor: default;
+}
+
+.insight-practice-item-static:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #e6eaf2;
+  background: #f8f9fc;
+}
+
+.insight-empty {
+  padding: 28px 12px;
+  color: #98a1b0;
+  font-size: 12px;
+  text-align: center;
 }

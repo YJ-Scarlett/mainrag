@@ -1246,6 +1246,15 @@ const closeReinforcement = () => {
   const mastery = data?.mastery || [];
   const summary = data?.summary || {};
   const students = data?.students || [];
+const lowestFiveMastery = useMemo(() => {
+  return [...mastery]
+    .sort(
+      (a, b) =>
+        Number(a.score ?? 100) -
+        Number(b.score ?? 100)
+    )
+    .slice(0, 5);
+}, [mastery]);
 const masteryGroups = useMemo(() => {
   return {
     all: mastery,
@@ -1628,8 +1637,7 @@ if (practiceTopic && role === 'student') {
         </div>
         <p>{data?.suggestion || '暂无足够学习记录。'}</p>
 <div className="insight-list">
-  {mastery.slice(0, 3).map((m, i) => {
-
+  {lowestFiveMastery.map((m, i) => {
     const itemContent = (
       <>
         <span>{i + 1}</span>
@@ -1647,8 +1655,6 @@ if (practiceTopic && role === 'student') {
                   : '掌握良好'}
           </small>
         </b>
-
-        <em>{m.score}%</em>
 
         {role === 'student' && (
           <ChevronRight />
@@ -1668,11 +1674,20 @@ if (practiceTopic && role === 'student') {
         {itemContent}
       </button>
     ) : (
-      <div key={m.topic}>
+      <div
+        key={m.topic}
+        className="insight-practice-item insight-practice-item-static"
+      >
         {itemContent}
       </div>
     );
   })}
+
+  {lowestFiveMastery.length === 0 && (
+    <div className="insight-empty">
+      暂无可生成专项练习的知识点
+    </div>
+  )}
 </div>      </section>
     </div>
     {role==='teacher'&&<section className="panel student-panel">
