@@ -117,62 +117,85 @@
 /* =========================================================
    专项巩固练习子窗口
    ========================================================= */
-
 .reinforcement-page {
   width: 100%;
-  max-width: 980px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
+
+/* 返回学情分析按钮 */
 .reinforcement-back {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+
+  border: 1px solid #cfd8f6;
+  background: #ffffff;
   color: #5872e8;
-  padding: 6px 2px;
-  margin-bottom: 14px;
+
+  padding: 9px 15px;
+  margin-bottom: 16px;
+
+  border-radius: 10px;
   font-weight: 600;
+
+  box-shadow:
+    0 3px 10px
+    rgba(75, 99, 190, 0.08);
+
+  transition: all 0.2s ease;
 }
 
 .reinforcement-back:hover {
-  text-decoration: underline;
+  border-color: #879bef;
+  background: #f1f4ff;
+  color: #405ac5;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 6px 16px
+    rgba(75, 99, 190, 0.13);
 }
 
+
+/* 整个专项练习区域占满右侧 */
 .reinforcement-card {
+  width: 100%;
   min-height: 560px;
-  padding: 30px;
+  padding: 30px 36px 38px;
 }
 
+
+/* 页面标题 */
 .reinforcement-heading {
   padding-bottom: 22px;
   border-bottom: 1px solid #edf0f5;
 }
 
 .reinforcement-heading h1 {
-  margin: 15px 0 7px;
+  margin: 15px 0 0;
   font-size: 25px;
 }
 
-.reinforcement-heading p {
-  margin: 0;
-  color: #8993a5;
-  font-size: 13px;
-}
 
+/* 加载和错误状态 */
 .reinforcement-loading,
-.reinforcement-error,
-.reinforcement-summary {
+.reinforcement-error {
   min-height: 360px;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
   text-align: center;
 }
 
-.reinforcement-loading > svg,
-.reinforcement-summary > svg {
+.reinforcement-loading > svg {
   width: 50px;
   height: 50px;
+
   color: #5872e8;
   margin-bottom: 14px;
 }
@@ -180,34 +203,43 @@
 .reinforcement-error > svg {
   width: 48px;
   height: 48px;
+
   color: #d8646a;
   margin-bottom: 12px;
 }
 
-.reinforcement-question {
-  max-width: 780px;
-  margin: 26px auto 0;
+
+/* 顶部总进度 */
+.reinforcement-overview {
+  margin: 24px 0 8px;
+  padding: 0 2px;
 }
 
 .reinforcement-progress-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+
   color: #7b8699;
   font-size: 12px;
 }
 
 .reinforcement-progress-head em {
-  padding: 4px 9px;
+  padding: 5px 10px;
+
   background: #edf1ff;
   border-radius: 12px;
+
   color: #5872e8;
   font-style: normal;
+  white-space: nowrap;
 }
 
 .reinforcement-progress {
   height: 7px;
-  margin: 10px 0 28px;
+  margin: 10px 0 0;
+
   border-radius: 5px;
   background: #edf0f5;
   overflow: hidden;
@@ -216,18 +248,100 @@
 .reinforcement-progress i {
   display: block;
   height: 100%;
+
   background: #5872e8;
   border-radius: inherit;
+
   transition: width 0.25s ease;
 }
 
-.reinforcement-question h2 {
-  margin: 0 0 24px;
+
+/* 三道题列表 */
+.reinforcement-question-list {
+  display: grid;
+  gap: 20px;
+  margin-top: 24px;
+}
+
+
+/* 单道题卡片 */
+.reinforcement-question-card {
+  width: 100%;
+  padding: 24px 26px;
+
+  border: 1px solid #e4e8f0;
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 6px 20px
+    rgba(35, 48, 78, 0.045);
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+/* 回答正确的题目 */
+.reinforcement-question-card.correct {
+  border-color: #bfe9d7;
+
+  box-shadow:
+    0 6px 20px
+    rgba(45, 151, 109, 0.08);
+}
+
+
+/* 回答错误的题目 */
+.reinforcement-question-card.wrong {
+  border-color: #f0c8cc;
+
+  box-shadow:
+    0 6px 20px
+    rgba(190, 78, 88, 0.07);
+}
+
+
+/* 每道题标题区域 */
+.reinforcement-question-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  margin-bottom: 18px;
+
+  color: #7b8699;
+  font-size: 12px;
+}
+
+.reinforcement-question-head > span {
+  color: #58667d;
+  font-weight: 700;
+}
+
+.reinforcement-question-head em {
+  padding: 5px 10px;
+
+  background: #edf1ff;
+  border-radius: 12px;
+
+  color: #5872e8;
+  font-style: normal;
+}
+
+.reinforcement-question-card h2 {
+  margin: 0 0 22px;
+
   color: #263043;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.7;
 }
 
+
+/* 单选题选项 */
 .reinforcement-options {
   display: grid;
   gap: 11px;
@@ -236,11 +350,15 @@
 .reinforcement-options button {
   width: 100%;
   padding: 13px 15px;
+
   border: 1px solid #e0e5ee;
   border-radius: 12px;
-  background: #fff;
+
+  background: #ffffff;
   color: #455064;
+
   text-align: left;
+
   transition: all 0.2s;
 }
 
@@ -249,41 +367,99 @@
   background: #f5f7ff;
 }
 
+
+/* 用户刚选择的选项 */
 .reinforcement-options button.selected {
   border-color: #5872e8;
   background: #edf1ff;
+
   color: #405ac5;
   font-weight: 600;
+}
+
+
+/* 正确答案选项 */
+.reinforcement-options button.correct-option {
+  border-color: #63bf96;
+  background: #edf9f4;
+
+  color: #287c5c;
+  font-weight: 600;
+}
+
+
+/* 用户选错的选项 */
+.reinforcement-options button.wrong-option {
+  border-color: #df858d;
+  background: #fff3f4;
+
+  color: #a94a53;
+}
+
+.reinforcement-options button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+
+/* 填空题 */
+.reinforcement-fill-wrap {
+  display: grid;
+  gap: 8px;
 }
 
 .reinforcement-fill-input {
   width: 100%;
   padding: 13px 15px;
+
   border: 1px solid #dfe4ed;
   border-radius: 11px;
+
   outline: none;
 }
 
 .reinforcement-fill-input:focus {
   border-color: #5872e8;
-  box-shadow: 0 0 0 3px rgba(88, 114, 232, 0.12);
+
+  box-shadow:
+    0 0 0 3px
+    rgba(88, 114, 232, 0.12);
 }
 
+.reinforcement-fill-wrap small {
+  color: #929bad;
+  font-size: 11px;
+}
+
+
+/* 判题等待文字 */
+.reinforcement-checking {
+  margin-top: 12px;
+
+  color: #5872e8;
+  font-size: 12px;
+}
+
+
+/* 单题反馈 */
 .reinforcement-feedback {
   margin-top: 20px;
   padding: 17px;
+
   border-radius: 13px;
 }
 
 .reinforcement-feedback.correct {
-  background: #edf9f4;
   border: 1px solid #bfe9d7;
+  background: #edf9f4;
+
   color: #287c5c;
 }
 
 .reinforcement-feedback.wrong {
-  background: #fff3f4;
   border: 1px solid #f0c8cc;
+  background: #fff3f4;
+
   color: #a94a53;
 }
 
@@ -291,6 +467,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+
   margin-bottom: 11px;
 }
 
@@ -299,14 +476,48 @@
   line-height: 1.7;
 }
 
-.reinforcement-actions {
-  margin-top: 22px;
+
+/* 三题完成后的总结 */
+.reinforcement-summary {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+}
+
+.reinforcement-summary-inline {
+  min-height: 0;
+  margin-top: 24px;
+  padding: 28px 20px;
+
+  border: 1px solid #dfe5f2;
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7f9ff,
+      #ffffff
+    );
+}
+
+.reinforcement-summary > svg {
+  width: 48px;
+  height: 48px;
+
+  color: #5872e8;
+  margin-bottom: 12px;
+}
+
+.reinforcement-summary h2 {
+  margin: 0;
 }
 
 .reinforcement-summary strong {
   margin-top: 14px;
+
   color: #5872e8;
   font-size: 42px;
 }
@@ -322,18 +533,30 @@
   margin-top: 25px;
 }
 
+
+/* 手机端 */
 @media (max-width: 768px) {
   .reinforcement-card {
-    padding: 20px 15px;
+    padding: 20px 15px 28px;
   }
 
-  .reinforcement-question h2 {
+  .reinforcement-progress-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .reinforcement-question-card {
+    padding: 20px 16px;
+  }
+
+  .reinforcement-question-card h2 {
     font-size: 17px;
   }
 
   .reinforcement-summary-actions {
-    flex-direction: column;
     width: 100%;
+    flex-direction: column;
   }
 
   .reinforcement-summary-actions button {

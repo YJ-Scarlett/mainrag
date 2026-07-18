@@ -865,24 +865,32 @@ function ReinforcementPractice({
   onBack,
 }) {
   const [practice, setPractice] = useState(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answer, setAnswer] = useState('');
-  const [feedback, setFeedback] = useState(null);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [finished, setFinished] = useState(false);
+
+  // 每道题分别保存答案
+  const [answers, setAnswers] = useState({});
+
+  // 每道题分别保存判题结果
+  const [feedbackMap, setFeedbackMap] = useState({});
+
+  // 每道题分别记录是否正在判定
+  const [checkingMap, setCheckingMap] = useState({});
+
+  // 每道题分别保存请求错误
+  const [questionErrors, setQuestionErrors] = useState({});
+
   const [loading, setLoading] = useState(true);
-  const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
 
   const startPractice = async () => {
     setLoading(true);
     setError('');
     setPractice(null);
-    setCurrentIndex(0);
-    setAnswer('');
-    setFeedback(null);
-    setCorrectCount(0);
-    setFinished(false);
+
+    // 重新生成时清空上一组答题状态
+    setAnswers({});
+    setFeedbackMap({});
+    setCheckingMap({});
+    setQuestionErrors({});
 
     try {
       const data = await post(
@@ -906,50 +914,119 @@ function ReinforcementPractice({
   }, [topic]);
 
   const questions = practice?.questions || [];
-  const currentQuestion = questions[currentIndex];
   const total = questions.length;
 
-  const submitAnswer = async () => {
-    if (!answer.trim() || !currentQuestion) {
-      setError('请先选择或输入答案。');
+  // 已完成判定的题目数量
+  const completedCount = Object.keys(feedbackMap).length;
+
+  // 已答对的题目数量
+  const correctCount = Object.values(feedbackMap)
+    .filter(item => item?.correct)
+    .length;
+
+  // 三道题全部判定后完成
+  const finished =
+    total > 0 &&
+    completedCount === total;
+
+  // 统一提取选项字母，兼容 A、A.、A、等格式
+  const normalizeChoice = (value) => {
+    const raw = String(value || '').trim();
+
+    const match = raw.match(
+      /^([A-Da-d])(?:[.、:：\s]|$)/
+    );
+
+    return match
+      ? match[1].toUpperCase()
+      : raw.toLowerCase();
+  };
+
+  // 判断某个选项是不是正确答案
+  const optionMatchesAnswer = (
+    option,
+    correctAnswer
+  ) => {
+    return (
+      normalizeChoice(option) ===
+      normalizeChoice(correctAnswer)
+    );
+  };
+
+  // 单独判定某一道题
+  const checkAnswer = async (
+    question,
+    nextAnswer
+  ) => {
+    const questionId = question.id;
+    const cleanAnswer = String(
+      nextAnswer || ''
+    ).trim();
+
+    // 空答案、已判定、正在判定时不重复请求
+    if (
+      !cleanAnswer ||
+      feedbackMap[questionId] ||
+      checkingMap[questionId]
+    ) {
       return;
     }
 
-    setChecking(true);
-    setError('');
+    setAnswers(previous => ({
+      ...previous,
+      [questionId]: nextAnswer,
+    }));
+
+    setCheckingMap(previous => ({
+      ...previous,
+      [questionId]: true,
+    }));
+
+    setQuestionErrors(previous => ({
+      ...previous,
+      [questionId]: '',
+    }));
 
     try {
       const result = await post(
         '/reinforcement/check',
         {
           session_id: practice.session_id,
-          question_id: currentQuestion.id,
-          answer,
+          question_id: questionId,
+          answer: nextAnswer,
         }
       );
 
-      setFeedback(result);
-
-      if (result.correct) {
-        setCorrectCount(value => value + 1);
-      }
+      setFeedbackMap(previous => ({
+        ...previous,
+        [questionId]: result,
+      }));
     } catch (err) {
-      setError(err.message);
+      setQuestionErrors(previous => ({
+        ...previous,
+        [questionId]: err.message,
+      }));
     } finally {
-      setChecking(false);
+      setCheckingMap(previous => ({
+        ...previous,
+        [questionId]: false,
+      }));
     }
   };
 
-  const goNext = () => {
-    if (currentIndex >= total - 1) {
-      setFinished(true);
+  // 单选题点击选项后立即判定
+  const chooseOption = (
+    question,
+    option
+  ) => {
+    if (
+      feedbackMap[question.id] ||
+      checkingMap[question.id]
+    ) {
       return;
     }
 
-    setCurrentIndex(value => value + 1);
-    setAnswer('');
-    setFeedback(null);
-    setError('');
+    checkAnswer(question, option);
   };
 
   return (
@@ -972,23 +1049,26 @@ function ReinforcementPractice({
           </span>
 
           <h1>{topic}</h1>
-
-          <p>
-            本练习不会计入错题本和学情分析。
-          </p>
         </div>
 
+        {/* 生成题目时的状态 */}
         {loading && (
           <div className="reinforcement-loading">
             <Sparkles />
+
             <h3>正在生成巩固习题</h3>
-            <p>系统正在从课程知识库检索相关内容……</p>
+
+            <p>
+              系统正在从课程知识库检索相关内容……
+            </p>
           </div>
         )}
 
+        {/* 生成失败 */}
         {!loading && error && !practice && (
           <div className="reinforcement-error">
             <AlertCircle />
+
             <p>{error}</p>
 
             <button
@@ -1001,192 +1081,330 @@ function ReinforcementPractice({
           </div>
         )}
 
-        {!loading && practice && finished && (
-          <div className="reinforcement-summary">
-            <CheckCircle2 />
-
-            <h2>专项巩固完成</h2>
-
-            <p>{topic}</p>
-
-            <strong>
-              {correctCount} / {total}
-            </strong>
-
-            <span>
-              正确率：
-              {total
-                ? Math.round(
-                    correctCount / total * 100
-                  )
-                : 0}
-              %
-            </span>
-
-            <div className="reinforcement-summary-actions">
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={startPractice}
-              >
-                再练一组
-              </button>
-
-              <button
-                type="button"
-                className="primary"
-                onClick={onBack}
-              >
-                返回学情分析
-              </button>
-            </div>
-          </div>
-        )}
-
+        {/* 三道题同时展示 */}
         {!loading &&
           practice &&
-          !finished &&
-          currentQuestion && (
-            <div className="reinforcement-question">
+          total > 0 && (
+            <>
+              {/* 总进度 */}
+              <div className="reinforcement-overview">
 
-              <div className="reinforcement-progress-head">
-                <span>
-                  第 {currentIndex + 1} / {total} 题
-                </span>
+                <div className="reinforcement-progress-head">
+                  <span>
+                    已完成 {completedCount} / {total} 题
+                  </span>
 
-                <em>
-                  {currentQuestion.type === 'choice'
-                    ? '单选题'
-                    : '填空题'}
-                </em>
+                  <em>
+                    {finished
+                      ? `正确率 ${Math.round(
+                          correctCount /
+                          total *
+                          100
+                        )}%`
+                      : '作答后即时显示答案与解析'}
+                  </em>
+                </div>
+
+                <div className="reinforcement-progress">
+                  <i
+                    style={{
+                      width: `${
+                        total
+                          ? completedCount /
+                            total *
+                            100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
               </div>
 
-              <div className="reinforcement-progress">
-                <i
-                  style={{
-                    width:
-                      `${(currentIndex + 1) / total * 100}%`,
-                  }}
-                />
+              {/* 三道题列表 */}
+              <div className="reinforcement-question-list">
+
+                {questions.map(
+                  (question, index) => {
+                    const questionId =
+                      question.id;
+
+                    const answer =
+                      answers[questionId] || '';
+
+                    const feedback =
+                      feedbackMap[questionId];
+
+                    const checking =
+                      Boolean(
+                        checkingMap[questionId]
+                      );
+
+                    const questionError =
+                      questionErrors[questionId];
+
+                    return (
+                      <article
+                        key={questionId}
+                        className={
+                          `reinforcement-question-card ${
+                            feedback
+                              ? feedback.correct
+                                ? 'correct'
+                                : 'wrong'
+                              : ''
+                          }`
+                        }
+                      >
+                        <div className="reinforcement-question-head">
+
+                          <span>
+                            第 {index + 1} 题
+                          </span>
+
+                          <em>
+                            {question.type ===
+                            'choice'
+                              ? '单选题'
+                              : '填空题'}
+                          </em>
+                        </div>
+
+                        <h2>
+                          {question.question}
+                        </h2>
+
+                        {/* 单选题 */}
+                        {question.type ===
+                        'choice' ? (
+                          <div className="reinforcement-options">
+
+                            {question.options.map(
+                              option => {
+                                const isSelected =
+                                  answer === option;
+
+                                const isCorrectOption =
+                                  feedback &&
+                                  optionMatchesAnswer(
+                                    option,
+                                    feedback.correct_answer
+                                  );
+
+                                const optionClassName = [
+                                  isSelected
+                                    ? 'selected'
+                                    : '',
+
+                                  feedback &&
+                                  isCorrectOption
+                                    ? 'correct-option'
+                                    : '',
+
+                                  feedback &&
+                                  isSelected &&
+                                  !feedback.correct
+                                    ? 'wrong-option'
+                                    : '',
+                                ]
+                                  .filter(Boolean)
+                                  .join(' ');
+
+                                return (
+                                  <button
+                                    type="button"
+                                    key={option}
+                                    disabled={
+                                      Boolean(
+                                        feedback
+                                      ) ||
+                                      checking
+                                    }
+                                    className={
+                                      optionClassName
+                                    }
+                                    onClick={() =>
+                                      chooseOption(
+                                        question,
+                                        option
+                                      )
+                                    }
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              }
+                            )}
+
+                          </div>
+                        ) : (
+                          /* 填空题 */
+                          <div className="reinforcement-fill-wrap">
+
+                            <input
+                              className="reinforcement-fill-input"
+                              value={answer}
+                              disabled={
+                                Boolean(feedback) ||
+                                checking
+                              }
+                              placeholder="请输入答案，按 Enter 即时判定"
+                              onChange={event => {
+                                const value =
+                                  event.target.value;
+
+                                setAnswers(
+                                  previous => ({
+                                    ...previous,
+                                    [questionId]:
+                                      value,
+                                  })
+                                );
+                              }}
+                              onKeyDown={event => {
+                                if (
+                                  event.key ===
+                                    'Enter' &&
+                                  !feedback &&
+                                  !checking
+                                ) {
+                                  event.preventDefault();
+
+                                  checkAnswer(
+                                    question,
+                                    answer
+                                  );
+                                }
+                              }}
+                            />
+
+                            <small>
+                              输入完成后按 Enter，系统会立即判定。
+                            </small>
+                          </div>
+                        )}
+
+                        {/* 判定等待状态 */}
+                        {checking && (
+                          <div className="reinforcement-checking">
+                            正在判定答案……
+                          </div>
+                        )}
+
+                        {/* 单题错误 */}
+                        {questionError && (
+                          <div className="error">
+                            {questionError}
+                          </div>
+                        )}
+
+                        {/* 正确答案和解析 */}
+                        {feedback && (
+                          <div
+                            className={
+                              `reinforcement-feedback ${
+                                feedback.correct
+                                  ? 'correct'
+                                  : 'wrong'
+                              }`
+                            }
+                          >
+                            <div>
+                              {feedback.correct
+                                ? (
+                                  <CheckCircle2 />
+                                )
+                                : (
+                                  <AlertCircle />
+                                )}
+
+                              <strong>
+                                {feedback.correct
+                                  ? '回答正确'
+                                  : '回答错误'}
+                              </strong>
+                            </div>
+
+                            {!feedback.correct && (
+                              <p>
+                                <b>
+                                  你的答案：
+                                </b>
+
+                                {
+                                  feedback.student_answer
+                                }
+                              </p>
+                            )}
+
+                            <p>
+                              <b>
+                                正确答案：
+                              </b>
+
+                              {
+                                feedback.correct_answer
+                              }
+                            </p>
+
+                            <p>
+                              <b>解析：</b>
+
+                              {feedback.analysis}
+                            </p>
+                          </div>
+                        )}
+
+                      </article>
+                    );
+                  }
+                )}
+
               </div>
 
-              <h2>{currentQuestion.question}</h2>
+              {/* 三题完成后的总结 */}
+              {finished && (
+                <div className="reinforcement-summary reinforcement-summary-inline">
 
-              {currentQuestion.type === 'choice' ? (
-                <div className="reinforcement-options">
-                  {currentQuestion.options.map(option => (
+                  <CheckCircle2 />
+
+                  <h2>专项巩固完成</h2>
+
+                  <strong>
+                    {correctCount} / {total}
+                  </strong>
+
+                  <span>
+                    正确率：
+                    {Math.round(
+                      correctCount /
+                      total *
+                      100
+                    )}
+                    %
+                  </span>
+
+                  <div className="reinforcement-summary-actions">
+
                     <button
                       type="button"
-                      key={option}
-                      disabled={Boolean(feedback)}
-                      className={
-                        answer === option
-                          ? 'selected'
-                          : ''
-                      }
-                      onClick={() => setAnswer(option)}
+                      className="secondary-btn"
+                      onClick={startPractice}
                     >
-                      {option}
+                      再练一组
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <input
-                  className="reinforcement-fill-input"
-                  value={answer}
-                  disabled={Boolean(feedback)}
-                  placeholder="请输入答案"
-                  onChange={event =>
-                    setAnswer(event.target.value)
-                  }
-                  onKeyDown={event => {
-                    if (
-                      event.key === 'Enter' &&
-                      !feedback
-                    ) {
-                      submitAnswer();
-                    }
-                  }}
-                />
-              )}
 
-              {error && (
-                <div className="error">
-                  {error}
-                </div>
-              )}
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={onBack}
+                    >
+                      返回学情分析
+                    </button>
 
-              {feedback && (
-                <div
-                  className={
-                    `reinforcement-feedback ${
-                      feedback.correct
-                        ? 'correct'
-                        : 'wrong'
-                    }`
-                  }
-                >
-                  <div>
-                    {feedback.correct
-                      ? <CheckCircle2 />
-                      : <AlertCircle />}
-
-                    <strong>
-                      {feedback.correct
-                        ? '回答正确'
-                        : '回答错误'}
-                    </strong>
                   </div>
-
-                  {!feedback.correct && (
-                    <p>
-                      <b>你的答案：</b>
-                      {feedback.student_answer}
-                    </p>
-                  )}
-
-                  <p>
-                    <b>正确答案：</b>
-                    {feedback.correct_answer}
-                  </p>
-
-                  <p>
-                    <b>解析：</b>
-                    {feedback.analysis}
-                  </p>
                 </div>
               )}
-
-              <div className="reinforcement-actions">
-                {!feedback ? (
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={
-                      checking ||
-                      !answer.trim()
-                    }
-                    onClick={submitAnswer}
-                  >
-                    {checking
-                      ? '正在判定…'
-                      : '提交答案'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={goNext}
-                  >
-                    {currentIndex >= total - 1
-                      ? '查看练习结果'
-                      : '下一题'}
-                    <ChevronRight />
-                  </button>
-                )}
-              </div>
-
-            </div>
+            </>
           )}
 
       </div>
