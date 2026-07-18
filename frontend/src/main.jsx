@@ -11,6 +11,14 @@ import WelcomeLearning from './assets/illustrations/welcome-learning.svg';
 import UploadCloud from './assets/illustrations/upload-cloud.svg';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
+function apiAssetUrl(url){
+  if(!url)return '';
+  if(/^https?:\/\//i.test(url))return url;
+  const apiRoot=API.replace(/\/api\/?$/,'');
+  if(url.startsWith('/api/'))return apiRoot+url;
+  if(url.startsWith('/'))return apiRoot+url;
+  return `${API}/${url}`;
+}
 const requestCache=new Map();
 async function request(path, options={}) { const {cache=true,...fetchOptions}=options;let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const method=(fetchOptions.method||'GET').toUpperCase();const cacheKey=`${role}:${path}`;if(method==='GET'&&cache&&requestCache.has(cacheKey)){const item=requestCache.get(cacheKey);if(Date.now()-item.time<10000)return item.data}const headers={...(fetchOptions.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...fetchOptions,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); if(method==='GET'&&cache)requestCache.set(cacheKey,{time:Date.now(),data}); return data; }
 const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -377,7 +385,7 @@ function Dashboard({user, go}) {
       <section className="welcome">
         <div>
           <span className="eyebrow"><Sparkles size={14} />{role === 'teacher' ? '智能教学助手' : '今日学习建议'}</span>
-          <h1>下午好，{user.name} 👋</h1>
+          <h1>下午好，{user.name}！</h1>
           <p>{role === 'teacher' ? '班级整体表现平稳，建议重点关注薄弱知识点。' : '保持好奇，今天也从一个好问题开始吧。'}</p>
         </div>
         <div className="welcome-right">
@@ -574,7 +582,16 @@ function Chat({user}){
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
   const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(() => { loadHistory(); }, [user.name]);
-  const openHistory=item=>{setActiveHistory(item.id);setMessages([welcome,{role:'user',text:item.question},{role:'ai',text:item.answer,sources:item.sources||[]}])};
+  const openHistory=item=>{
+    const isPhoto=item.kind==='photo_search'||item.image_url||item.ocr_text||String(item.question||'').startsWith('拍照搜题');
+    const ocrText=item.ocr_text||(isPhoto?String(item.question||'').replace(/^拍照搜题[:：]?\n?/,'').trim():'');
+    setActiveHistory(item.id);
+    setMessages([
+      welcome,
+      {role:'user',text:isPhoto?'拍照搜题':item.question,image:apiAssetUrl(item.image_url),ocrText},
+      {role:'ai',text:item.answer,sources:item.sources||[]}
+    ])
+  };
   const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
   const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);showToast('历史记录已删除 ✅');};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
