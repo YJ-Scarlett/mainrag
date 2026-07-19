@@ -60,7 +60,8 @@ async def stream_answer(question: str, references: list[dict]):
         raise HTTPException(503, "尚未配置 DEEPSEEK_API_KEY，请在启动后端的终端中设置环境变量后重启")
 
     try:
-        async with httpx.AsyncClient(timeout=None) as client:
+        timeout = httpx.Timeout(connect=10.0, read=45.0, write=20.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream(
                 "POST",
                 f"{settings.deepseek_base_url}/chat/completions",
