@@ -10,6 +10,7 @@ import EmptyQuestions from './assets/illustrations/empty-questions.svg';
 import EmptyCelebration from './assets/illustrations/empty-celebration.svg';
 import WelcomeLearning from './assets/illustrations/welcome-learning.svg';
 import UploadCloud from './assets/illustrations/upload-cloud.svg';
+import TeacherAvatar from './assets/avatars/teacher_clean.png';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 function apiAssetUrl(url){
@@ -538,7 +539,7 @@ function MarkdownText({text,sources=[],onSourceClick}){
     const blockText=block.type==='ol'||block.type==='ul'?block.items.join('\n'):block.text||'';
     groups[index]=sourceRefsForText(blockText,sources);
   });
-  if(!groups.some(group=>group.length)&&sources.some(source=>source?.start_time!==undefined&&source?.start_time!==null)){
+  if(!groups.some(group=>group.length)&&sources.length){
     const firstTextBlock=parsed.findIndex(block=>block.type!=='heading');
     if(firstTextBlock>=0)groups[firstTextBlock]=sources.map((source,index)=>({source,index}));
   }
@@ -576,22 +577,74 @@ function parseMediaCaptions(content=''){
 function DigitalHumanAsk({user,selectedDoc}) {
   const {showToast}=useContext(ToastContext);
   const [input,setInput]=useState('');
-  const [answer,setAnswer]=useState('');
-  const [sources,setSources]=useState([]);
+  const [avatarMessages,setAvatarMessages]=useState([]);
   const [loading,setLoading]=useState(false);
   const [status,setStatus]=useState('等待提问');
+  const [avatarReload,setAvatarReload]=useState(0);
+  const [avatarLive,setAvatarLive]=useState(false);
   const avatarFrameRef=useRef(null);
+  const avatarConnectionRef=useRef(false);
+  const chatEndRef=useRef(null);
   const baseAvatarUrl=import.meta.env.VITE_AVATAR_URL||'http://localhost:8282/ui/index.html';
-  const avatarUrl=baseAvatarUrl.includes('?')?`${baseAvatarUrl}&mainrag_embed=1`:`${baseAvatarUrl}?mainrag_embed=1`;
+  const avatarUrl=useMemo(()=>{
+    const sep=baseAvatarUrl.includes('?')?'&':'?';
+    return `${baseAvatarUrl}${sep}mainrag_embed=1&v=20260719-sync-bg-${avatarReload}`;
+  },[baseAvatarUrl,avatarReload]);
   const cleanAvatarText=text=>String(text||'').replace(/\*\*/g,'').replace(/[#>`]/g,'').replace(/\n{3,}/g,'\n\n').trim();
+  const closeAvatarConnection=()=>{
+    try{
+      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-close'},'*');
+    }catch{}
+  };
+  const openSource=source=>{
+    if(!source?.document_id)return;
+    const params=new URLSearchParams({
+      doc:source.document_id,
+      name:source.document||'',
+      page:String(source.page||''),
+      chunk:String(source.chunk||'')
+    });
+    if(source.start_time!==undefined&&source.start_time!==null)params.set('start',String(source.start_time));
+    if(source.end_time!==undefined&&source.end_time!==null)params.set('end',String(source.end_time));
+    closeAvatarConnection();
+    setStatus('正在关闭数字人连接并跳转知识库');
+    window.setTimeout(()=>location.assign(`/${user.role}/knowledge?${params.toString()}`),500);
+  };
+  useEffect(()=>{
+    const onAvatarStatus=event=>{
+      const data=event.data||{};
+      if(data.type!=='mainrag-avatar-status')return;
+      if(['closed','open','error'].includes(data.status))avatarConnectionRef.current=true;
+      if(data.status==='open'||data.status==='playing')setAvatarLive(true);
+      if(data.status==='closed'||data.status==='error')setAvatarLive(false);
+      const map={closed:'数字人连接未开启',mounted:'数字人页面已挂载，正在准备连接',offer:'正在发起 WebRTC 连接',waiting:'正在连接数字人',open:'数字人已连接，可提问讲解',playing:'数字人视频已开始播放',error:`数字人连接失败：${data.message||''}`};
+      setStatus(map[data.status]||String(data.status||'数字人状态更新'));
+    };
+    window.addEventListener('message',onAvatarStatus);
+    return()=>window.removeEventListener('message',onAvatarStatus);
+  },[]);
+  useEffect(()=>{
+    avatarConnectionRef.current=false;
+    const timer=window.setTimeout(()=>{
+      if(!avatarConnectionRef.current){
+        setStatus('数字人连接超时：请重启 OpenAvatarChat，并确认 8282 页面可直接打开');
+      }
+    },10000);
+    return()=>window.clearTimeout(timer);
+  },[avatarReload]);
+  useEffect(()=>()=>closeAvatarConnection(),[]);
+  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:'smooth',block:'end'})},[avatarMessages,loading]);
+  const latestAnswer=useMemo(()=>[...avatarMessages].reverse().find(item=>item.role==='ai'&&item.text)?.text||'',[avatarMessages]);
+  const updateAiMessage=(id,patch)=>setAvatarMessages(items=>items.map(item=>item.id===id?{...item,...patch,text:patch.append?item.text+patch.append:patch.text??item.text}:item));
   const sendToAvatar=text=>{
     const cleaned=cleanAvatarText(text);
     if(!cleaned){showToast('暂无可讲解内容','error');return}
     setStatus('正在发送给数字人');
     try{
-      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*');
+      const target=avatarFrameRef.current?.contentWindow;
+      [0,800,2000,4000].forEach(delay=>window.setTimeout(()=>target?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*'),delay));
       navigator.clipboard?.writeText(cleaned).catch(()=>{});
-      setStatus('已发送给数字人讲解');
+      setStatus('已发送给数字人讲解。如果没有声音，请确认 OpenAvatarChat 已重启并加载完成。');
       showToast('数字人讲解已发送');
     }catch{
       setStatus('发送失败，可手动复制讲解稿到数字人输入框');
@@ -600,17 +653,19 @@ function DigitalHumanAsk({user,selectedDoc}) {
   const ask=async(q=input)=>{
     const question=String(q||'').trim();
     if(!question||loading)return;
-    const scopedQuestion=selectedDoc?`请优先结合资料《${selectedDoc.name}》回答：${question}`:question;
+    const spokenPrompt='请用适合数字人口播的方式回答，控制在 140 字以内，先讲清核心结论，再补充两到三个关键点，语言自然口语化。';
+    const scopedQuestion=selectedDoc?`${spokenPrompt}\n请优先结合资料《${selectedDoc.name}》回答：${question}`:`${spokenPrompt}\n学生问题：${question}`;
+    const userId=`u-${Date.now()}`;
+    const aiId=`a-${Date.now()}`;
     setInput('');
-    setAnswer('');
-    setSources([]);
+    setAvatarMessages(items=>[...items,{id:userId,role:'user',text:question},{id:aiId,role:'ai',text:'',sources:[],streaming:true}]);
     setLoading(true);
     setStatus('正在检索知识库并生成回答');
     let pendingText='';
     let updateTimer=null;
     const flush=()=>{
       if(pendingText){
-        setAnswer(text=>text+pendingText);
+        updateAiMessage(aiId,{append:pendingText,streaming:true});
         pendingText='';
       }
       updateTimer=null;
@@ -643,13 +698,12 @@ function DigitalHumanAsk({user,selectedDoc}) {
           try{
             const event=JSON.parse(jsonStr);
             if(event.type==='delta'){pendingText+=event.content||'';schedule()}
-            if(event.type==='sources')setSources(event.sources||[]);
+            if(event.type==='sources')updateAiMessage(aiId,{sources:event.sources||[]});
             if(event.type==='done'){
               gotDone=true;
               if(updateTimer)clearTimeout(updateTimer);
               pendingText='';
-              setAnswer(event.answer||'');
-              setSources(event.sources||[]);
+              updateAiMessage(aiId,{text:event.answer||'',sources:event.sources||[],streaming:false});
               setStatus('回答完成，正在驱动数字人讲解');
               setTimeout(()=>sendToAvatar(event.answer||''),0);
             }
@@ -659,18 +713,55 @@ function DigitalHumanAsk({user,selectedDoc}) {
         }
       }
       if(updateTimer)clearTimeout(updateTimer);
-      if(pendingText)setAnswer(text=>text+pendingText);
-      if(!gotDone)setStatus('回答已生成，但未收到结束信号，可重新播放当前讲解');
+      if(pendingText)updateAiMessage(aiId,{append:pendingText,streaming:true});
+      if(!gotDone){
+        updateAiMessage(aiId,{streaming:false});
+        setStatus('回答已生成，但未收到结束信号，可重新播放当前讲解');
+      }
     }catch(error){
       if(updateTimer)clearTimeout(updateTimer);
-      setAnswer(error.message||'回答生成失败');
+      updateAiMessage(aiId,{text:error.message||'回答生成失败',sources:[],streaming:false});
       setStatus('回答生成失败');
     }finally{
       setLoading(false);
     }
   };
-  const presets=selectedDoc?[`讲解这份资料的核心内容`,`根据这份资料出一道例题并讲解`,`总结这份资料的易错点`]:['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','数据库事务 ACID 是什么？'];
-  return <section className="panel kb-avatar-panel"><div className="kb-avatar-head"><div><span className="eyebrow"><Video size={14}/>数字人问答助手</span><h3>数字人交互讲解</h3><p>{selectedDoc?`当前优先参考：${selectedDoc.name}`:'先启动 OpenAvatarChat，然后在这里提问即可。'}</p></div><small>{status}</small></div><div className="kb-avatar-grid"><div className="kb-avatar-stage"><iframe ref={avatarFrameRef} src={avatarUrl} title="知问数字人"/></div><div className="kb-avatar-dialog"><div className="kb-avatar-presets">{presets.map(item=><button type="button" key={item} onClick={()=>ask(item)} disabled={loading}>{item}</button>)}</div><div className="kb-avatar-answer">{answer?<MarkdownText text={answer} sources={sources}/>:<p>输入问题后，系统会先调用 mainrag 知识库问答生成讲解稿，再让数字人直接开口讲解。</p>}</div>{sources.length>0&&<div className="kb-avatar-sources"><b>参考来源</b>{sources.slice(0,3).map((s,i)=><span key={`${s.document}-${i}`}>{i+1}. {s.document} · {sourceLocationLabel(s)}</span>)}</div>}<div className="kb-avatar-input"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask()}}} placeholder="输入要让数字人讲解的问题，Enter 发送..."/><button type="button" onClick={()=>ask()} disabled={loading}><Send size={16}/>{loading?'生成中':'发送'}</button></div><button className="secondary-btn kb-avatar-resend" type="button" onClick={()=>sendToAvatar(answer)} disabled={!answer}>重新播放当前讲解</button></div></div></section>
+  return (
+    <section className="panel kb-avatar-panel">
+      <div className="kb-avatar-head">
+        <div>
+          <span className="eyebrow"><Video size={14}/>数字人问答助手</span>
+          <h3>数字人自动对话</h3>
+          <p>{selectedDoc?`当前优先参考：${selectedDoc.name}`:'提问后自动检索知识库、自动生成回答，并自动驱动数字人讲解。'}</p>
+        </div>
+        <div className="kb-avatar-status">
+          <small>{status}</small>
+          <button type="button" onClick={()=>{closeAvatarConnection();setAvatarLive(false);setStatus('正在重新连接数字人');window.setTimeout(()=>setAvatarReload(v=>v+1),300)}}><RefreshCw size={13}/>重连</button>
+        </div>
+      </div>
+      <div className="kb-avatar-grid">
+        <div className="kb-avatar-stage">
+          <img className={`kb-avatar-fallback ${avatarLive?'is-hidden':''}`} src={TeacherAvatar} alt="数字人形象"/>
+          <iframe key={avatarReload} ref={avatarFrameRef} src={avatarUrl} title="知问数字人" allow="autoplay; microphone; camera" onLoad={()=>{avatarConnectionRef.current=false;setStatus('数字人页面已加载，正在连接服务')}}/>
+        </div>
+        <div className="kb-avatar-dialog kb-avatar-chatbox">
+          <div className="kb-avatar-chat">
+            {avatarMessages.length===0
+              ? <div className="kb-avatar-empty"><Bot size={22}/><b>和数字人开始对话</b><p>输入问题后，系统会先检索 mainrag 知识库，再自动让数字人开口讲解。</p></div>
+              : avatarMessages.map(item=><div className={`kb-avatar-message ${item.role}`} key={item.id}>{item.role==='ai'&&<div className="kb-avatar-message-icon"><Sparkles size={15}/></div>}<div className="kb-avatar-bubble">{item.role==='ai'?<><MarkdownText text={item.text||'正在生成讲解…'} sources={item.sources||[]} onSourceClick={openSource}/>{item.streaming&&<span className="stream-cursor">|</span>}{item.sources?.length>0&&<div className="kb-avatar-sources compact"><b>参考来源</b>{item.sources.slice(0,3).map((s,i)=><button type="button" key={`${item.id}-${s.document}-${i}`} onClick={()=>openSource(s)} title={`来源 ${i+1}：点击跳转到对应文档和位置`}><i>{i+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span></button>)}</div>}</>:item.text}</div></div>)}
+            <div ref={chatEndRef}/>
+          </div>
+        </div>
+      </div>
+      <div className="kb-avatar-compose-bar">
+        <div className="kb-avatar-input">
+          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask()}}} placeholder="输入问题，Enter 发送，回答完成后数字人会自动讲解..."/>
+          <button type="button" onClick={()=>ask()} disabled={loading}><Send size={16}/>{loading?'生成中':'发送'}</button>
+        </div>
+        <button className="secondary-btn kb-avatar-resend" type="button" onClick={()=>sendToAvatar(latestAnswer)} disabled={!latestAnswer}>重播最新讲解</button>
+      </div>
+    </section>
+  )
 }
 function Chat({user}){
   const { showToast } = useContext(ToastContext);
