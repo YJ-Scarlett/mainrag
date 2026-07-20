@@ -8,4 +8,5 @@ class SearchRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
-    student: str = "张同学"
+    # 旧前端兼容字段；实际身份始终从 JWT 中读取。
+    student: str | None = None

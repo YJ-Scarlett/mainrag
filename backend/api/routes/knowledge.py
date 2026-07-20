@@ -1,9 +1,11 @@
 import mimetypes
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
 from core.security import require_teacher
+from db.models import User
 from services.document_service import (
     add_document,
     delete_document,
@@ -73,28 +75,42 @@ def download_document(document_id: str):
 @router.post("/upload")
 async def upload_document(
     background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(require_teacher)],
     file: UploadFile = File(...),
     category: str = Form("课程资料"),
-    _: None = Depends(require_teacher),
 ):
-    item = await add_document(file, category)
+    item = await add_document(
+        file,
+        category,
+        owner_teacher_id=current_user.id,
+        owner_teacher_name=current_user.name,
+    )
     background_tasks.add_task(generate_document_preview, item["id"])
     public_item = {
         key: value
         for key, value in item.items()
         if key not in {"content", "stored_path", "preview_path"}
     } | {"has_preview": bool(item.get("preview_path"))}
-    message = "上传、转写并建立向量索引成功，可在线播放预览" if item.get("source_kind") == "media" else "上传、解析并建立向量索引成功，预览正在后台生成"
+    message = (
+        "上传、转写并建立向量索引成功，可在线播放预览"
+        if item.get("source_kind") == "media"
+        else "上传、解析并建立向量索引成功，预览正在后台生成"
+    )
     return {"message": message, "item": public_item}
 
 
 @router.post("/reindex")
-async def reindex_documents(_: None = Depends(require_teacher)):
+async def reindex_documents(
+    _: Annotated[User, Depends(require_teacher)],
+):
     result = await rebuild_knowledge_vectors()
     return {"message": "知识库向量索引重建成功", **result}
 
 
 @router.delete("/{document_id}")
-def remove_document(document_id: str, _: None = Depends(require_teacher)):
-    delete_document(document_id)
-    return {"message": "已删除"}
+def remove_document(
+    document_id: str,
+    current_user: Annotated[User, Depends(require_teacher)],
+):
+    delete_document(document_id, current_user.id)
+    return {"message": "资料已删除"}

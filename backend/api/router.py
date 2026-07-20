@@ -4,6 +4,7 @@ from api.routes import (
     analysis,
     auth,
     chat,
+    classes,
     exams,
     health,
     knowledge,
@@ -14,6 +15,7 @@ from api.routes import (
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(classes.router, prefix="/classes", tags=["班级管理"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["知识库"])
 api_router.include_router(retrieval.router, tags=["检索"])
 api_router.include_router(chat.router, tags=["问答"])

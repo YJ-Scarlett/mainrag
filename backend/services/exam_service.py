@@ -81,7 +81,17 @@ def _normalize_questions(items: list[dict], count: int) -> list[dict]:
     return questions
 
 
-async def generate_exam(document_id: str, chapter: str, title: str, count: int, difficulty: str, question_types: list[str] | None = None) -> dict:
+async def generate_exam(
+    document_id: str,
+    chapter: str,
+    title: str,
+    count: int,
+    difficulty: str,
+    question_types: list[str] | None = None,
+    *,
+    creator_teacher_id: str,
+    creator_teacher_name: str,
+) -> dict:
     if not settings.deepseek_api_key:
         raise HTTPException(503, "尚未配置 DEEPSEEK_API_KEY，无法生成习题")
     document = get_document(document_id)
@@ -115,39 +125,75 @@ async def generate_exam(document_id: str, chapter: str, title: str, count: int, 
     except (httpx.HTTPError, KeyError, IndexError) as exc:
         raise HTTPException(502, f"DeepSeek 服务异常：{exc}") from exc
     exam = {
-        "id": uuid.uuid4().hex[:10], "title": title.strip() or f"{document['name']} · {chapter}练习",
-        "document_id": document_id, "document_name": document["name"], "chapter": chapter,
-        "difficulty": difficulty, "status": "draft", "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "id": uuid.uuid4().hex[:10],
+        "title": title.strip() or f"{document['name']} · {chapter}练习",
+        "document_id": document_id,
+        "document_name": document["name"],
+        "chapter": chapter,
+        "difficulty": difficulty,
+        "status": "draft",
+        "creator_teacher_id": creator_teacher_id,
+        "creator_teacher_name": creator_teacher_name,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "questions": _normalize_questions(generated, count),
     }
     data = store.load(); data["exams"].insert(0, exam); store.save(data)
     return exam
 
 
-def list_exams(published_only: bool = False) -> list[dict]:
+def list_exams(
+    published_only: bool = False,
+    *,
+    creator_teacher_id: str | None = None,
+) -> list[dict]:
     exams = store.load()["exams"]
     if published_only:
         exams = [item for item in exams if item["status"] == "published"]
+    elif creator_teacher_id:
+        exams = [
+            item
+            for item in exams
+            if item.get("creator_teacher_id") == creator_teacher_id
+        ]
     return exams
 
 
-def publish_exam(exam_id: str, question_ids: list[str] | None = None) -> dict:
-    data = store.load()
+def _get_owned_exam(data: dict, exam_id: str, teacher_id: str) -> dict:
     exam = next((item for item in data["exams"] if item["id"] == exam_id), None)
-    if not exam: raise HTTPException(404, "习题不存在")
+    if not exam:
+        raise HTTPException(404, "习题不存在")
+    if exam.get("creator_teacher_id") != teacher_id:
+        raise HTTPException(403, "只能管理自己创建的习题")
+    return exam
+
+
+def publish_exam(
+    exam_id: str,
+    teacher_id: str,
+    question_ids: list[str] | None = None,
+) -> dict:
+    data = store.load()
+    exam = _get_owned_exam(data, exam_id, teacher_id)
     if question_ids:
-        selected = [question for question in exam["questions"] if question["id"] in set(question_ids)]
+        selected = [
+            question
+            for question in exam["questions"]
+            if question["id"] in set(question_ids)
+        ]
         if not selected:
             raise HTTPException(400, "请至少选择一道习题发布")
         exam["questions"] = selected
-    exam["status"] = "published"; exam["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    store.save(data); return exam
+    exam["status"] = "published"
+    exam["published_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    store.save(data)
+    return exam
 
 
-def delete_exam(exam_id: str) -> None:
-    data = store.load(); remaining = [item for item in data["exams"] if item["id"] != exam_id]
-    if len(remaining) == len(data["exams"]): raise HTTPException(404, "习题不存在")
-    data["exams"] = remaining; store.save(data)
+def delete_exam(exam_id: str, teacher_id: str) -> None:
+    data = store.load()
+    _get_owned_exam(data, exam_id, teacher_id)
+    data["exams"] = [item for item in data["exams"] if item["id"] != exam_id]
+    store.save(data)
 
 
 async def _grade_solutions_with_ai(questions: list[dict], answers: dict[str, str]) -> dict[str, dict]:
@@ -210,13 +256,40 @@ async def _grade_solutions_with_ai(questions: list[dict], answers: dict[str, str
     return result
 
 
-async def submit_exam(exam_id: str, student: str, answers: dict[str, str], solution_grading: str = "ai") -> dict:
-    data = store.load(); exam = next((item for item in data["exams"] if item["id"] == exam_id and item["status"] == "published"), None)
-    if not exam: raise HTTPException(404, "已发布习题不存在")
+async def submit_exam(
+    exam_id: str,
+    *,
+    student_id: str,
+    student_username: str,
+    student_name: str,
+    answers: dict[str, str],
+    solution_grading: str = "ai",
+) -> dict:
+    data = store.load()
+    exam = next(
+        (
+            item
+            for item in data["exams"]
+            if item["id"] == exam_id and item["status"] == "published"
+        ),
+        None,
+    )
+    if not exam:
+        raise HTTPException(404, "已发布习题不存在")
     if solution_grading not in {"ai", "teacher"}:
         raise HTTPException(400, "解答题批改方式只能选择 ai 或 teacher")
-    solution_questions = [question for question in exam["questions"] if question.get("type") == "solution"]
-    ai_grades = await _grade_solutions_with_ai(solution_questions, answers) if solution_grading == "ai" else {}
+
+    solution_questions = [
+        question
+        for question in exam["questions"]
+        if question.get("type") == "solution"
+    ]
+    ai_grades = (
+        await _grade_solutions_with_ai(solution_questions, answers)
+        if solution_grading == "ai"
+        else {}
+    )
+
     details, earned, total = [], 0, 0
     for question in exam["questions"]:
         student_answer = str(answers.get(question["id"], "")).strip()
@@ -238,34 +311,79 @@ async def submit_exam(exam_id: str, student: str, answers: dict[str, str], solut
             awarded = question["score"] if correct else 0
             feedback = question.get("analysis", "")
             grading_status = "graded"
+
         total += question["score"]
         if awarded is not None:
             earned += awarded
-        details.append({
-            **question,
-            "student_answer": student_answer,
-            "correct": correct,
-            "score_awarded": awarded,
-            "feedback": feedback,
-            "grading_status": grading_status,
-            "grading_method": solution_grading if question.get("type") == "solution" else "auto",
-        })
+        details.append(
+            {
+                **question,
+                "student_answer": student_answer,
+                "correct": correct,
+                "score_awarded": awarded,
+                "feedback": feedback,
+                "grading_status": grading_status,
+                "grading_method": (
+                    solution_grading
+                    if question.get("type") == "solution"
+                    else "auto"
+                ),
+            }
+        )
+
     pending_teacher = solution_grading == "teacher" and bool(solution_questions)
     submission = {
-        "id": uuid.uuid4().hex[:10], "exam_id": exam_id, "exam_title": exam["title"], "student": student,
-        "score": round(earned, 1), "total": total,
+        "id": uuid.uuid4().hex[:10],
+        "exam_id": exam_id,
+        "exam_title": exam["title"],
+        "exam_creator_teacher_id": exam.get("creator_teacher_id"),
+        "student_id": student_id,
+        "student": student_username,
+        "student_name": student_name,
+        "score": round(earned, 1),
+        "total": total,
         "accuracy": None if pending_teacher else (round(earned / total * 100) if total else 0),
         "status": "pending_teacher" if pending_teacher else "graded",
         "solution_grading": solution_grading,
-        "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": details,
+        "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "details": details,
     }
-    data["submissions"] = [item for item in data["submissions"] if not (item["exam_id"] == exam_id and item["student"] == student)]
-    data["submissions"].insert(0, submission); store.save(data)
+
+    aliases = {student_username, student_name}
+    data["submissions"] = [
+        item
+        for item in data["submissions"]
+        if not (
+            item["exam_id"] == exam_id
+            and (
+                item.get("student_id") == student_id
+                or (
+                    not item.get("student_id")
+                    and str(item.get("student", "")) in aliases
+                )
+            )
+        )
+    ]
+    data["submissions"].insert(0, submission)
+    store.save(data)
     return submission
 
 
-def student_submissions(student: str) -> list[dict]:
-    return [student_submission_view(item) for item in store.load()["submissions"] if item["student"] == student]
+def student_submissions(
+    *,
+    student_id: str,
+    aliases: set[str],
+) -> list[dict]:
+    items = []
+    for item in store.load()["submissions"]:
+        belongs = (
+            item.get("student_id") == student_id
+            if item.get("student_id")
+            else str(item.get("student", "")) in aliases
+        )
+        if belongs:
+            items.append(student_submission_view(item))
+    return items
 
 
 def student_submission_view(submission: dict) -> dict:
@@ -278,18 +396,39 @@ def student_submission_view(submission: dict) -> dict:
     return result
 
 
-def list_submissions(status: str | None = None) -> list[dict]:
-    items = store.load()["submissions"]
+def list_submissions(
+    status: str | None = None,
+    *,
+    teacher_id: str | None = None,
+) -> list[dict]:
+    data = store.load()
+    items = data["submissions"]
+    if teacher_id:
+        owned_exam_ids = {
+            exam["id"]
+            for exam in data["exams"]
+            if exam.get("creator_teacher_id") == teacher_id
+        }
+        items = [item for item in items if item.get("exam_id") in owned_exam_ids]
     if status:
         items = [item for item in items if item.get("status", "graded") == status]
     return items
 
 
-def grade_submission(submission_id: str, grades: dict[str, dict], overall_comment: str = "") -> dict:
+def grade_submission(
+    submission_id: str,
+    grades: dict[str, dict],
+    overall_comment: str = "",
+    *,
+    teacher_id: str,
+) -> dict:
     data = store.load()
     submission = next((item for item in data["submissions"] if item["id"] == submission_id), None)
     if not submission:
         raise HTTPException(404, "提交记录不存在")
+    exam = next((item for item in data["exams"] if item["id"] == submission.get("exam_id")), None)
+    if not exam or exam.get("creator_teacher_id") != teacher_id:
+        raise HTTPException(403, "只能批改自己创建的习题提交")
     if submission.get("status") != "pending_teacher":
         raise HTTPException(400, "该试卷不处于待教师批改状态")
 
@@ -325,10 +464,93 @@ def grade_submission(submission_id: str, grades: dict[str, dict], overall_commen
     return submission
 
 
-def wrong_questions(student: str) -> list[dict]:
+def wrong_questions(
+    *,
+    student_id: str,
+    aliases: set[str],
+) -> list[dict]:
+    # 按提交时间从新到旧处理。
+    submissions = sorted(
+        student_submissions(
+            student_id=student_id,
+            aliases=aliases,
+        ),
+        key=lambda item: str(
+            item.get("submitted_at") or ""
+        ),
+        reverse=True,
+    )
+
     result = []
-    for submission in student_submissions(student):
-        for detail in submission["details"]:
-            if detail.get("grading_status", "graded") == "graded" and detail.get("correct") is False:
-                result.append({**detail, "exam_id": submission["exam_id"], "exam_title": submission["exam_title"], "submitted_at": submission["submitted_at"]})
+    seen_questions: set[tuple[str, str]] = set()
+
+    for submission in submissions:
+        exam_id = str(
+            submission.get("exam_id") or ""
+        )
+
+        submission_id = str(
+            submission.get("id") or ""
+        )
+
+        for detail in submission.get("details", []):
+            # 未完成批改的题目暂时不进入错题本。
+            if (
+                detail.get(
+                    "grading_status",
+                    "graded",
+                )
+                != "graded"
+            ):
+                continue
+
+            question_id = str(
+                detail.get("id") or ""
+            )
+
+            # 兼容极少数没有题目 ID 的旧数据。
+            question_identity = (
+                question_id
+                or str(
+                    detail.get("question") or ""
+                ).strip()
+            )
+
+            question_key = (
+                exam_id,
+                question_identity,
+            )
+
+            # 同一套练习中的同一道题，只采用最新一次结果。
+            if question_key in seen_questions:
+                continue
+
+            seen_questions.add(question_key)
+
+            # 最新一次已经答对，就不再保留旧的错误记录。
+            if detail.get("correct") is not False:
+                continue
+
+            knowledge_points = (
+                _normalize_knowledge_points(detail)
+            )
+
+            result.append(
+                {
+                    **detail,
+                    "knowledge_points": knowledge_points,
+                    "knowledge_point": knowledge_points[0],
+                    "submission_id": submission_id,
+                    "exam_id": exam_id,
+                    "exam_title": submission.get(
+                        "exam_title",
+                        "",
+                    ),
+                    "submitted_at": submission.get(
+                        "submitted_at",
+                        "",
+                    ),
+                }
+            )
+
     return result

@@ -14,7 +14,13 @@ from storage.json_store import store
 SUPPORTED_UPLOAD_EXTENSIONS = SUPPORTED_EXTENSIONS | SUPPORTED_MEDIA_EXTENSIONS
 
 
-async def add_document(file: UploadFile, category: str) -> dict:
+async def add_document(
+    file: UploadFile,
+    category: str,
+    *,
+    owner_teacher_id: str,
+    owner_teacher_name: str,
+) -> dict:
     raw = await file.read()
     filename = file.filename or "未命名资料"
     suffix = Path(filename).suffix.lower()
@@ -46,6 +52,8 @@ async def add_document(file: UploadFile, category: str) -> dict:
         "preview_status": "failed" if is_media else "processing",
         "preview_error": "音视频资料已完成转写并入库，暂不提供原版式预览。" if is_media else "",
         "source_kind": "media" if is_media else "document",
+        "owner_teacher_id": owner_teacher_id,
+        "owner_teacher_name": owner_teacher_name,
     }
 
     await index_document(item)
@@ -176,12 +184,14 @@ def get_download_path(document_id: str) -> tuple[Path, str]:
     return path, filename
 
 
-def delete_document(document_id: str) -> None:
+def delete_document(document_id: str, requester_teacher_id: str) -> None:
     data = store.load()
     document = next((item for item in data["documents"] if item["id"] == document_id), None)
     remaining = [item for item in data["documents"] if item["id"] != document_id]
     if len(remaining) == len(data["documents"]):
         raise HTTPException(404, "资料不存在。")
+    if document.get("owner_teacher_id") != requester_teacher_id:
+        raise HTTPException(403, "只能删除自己上传的资料。")
     data["documents"] = remaining
     store.save(data)
     delete_document_vectors(document_id)

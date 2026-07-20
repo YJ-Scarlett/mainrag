@@ -10,3 +10,47 @@ backend/models/
 backend/data/store.json
 backend/data/vector_store.json
 backend/data/chroma/
+# 前端依赖和构建结果
+frontend/node_modules/
+frontend/dist/
+
+# 前端临时备份
+frontend/src/main.after_*.jsx
+frontend/src/main.before_*.jsx
+frontend/src/main.rollback_*.jsx
+frontend/src/main.verified_*.jsx
+
+# 临时修复和备份目录
+merged_bugfix/
+phase_1_backup/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 环境配置
+.env
+*.env
+
+# 日志
+*.log
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 前端依赖与构建产物
+frontend/node_modules/
+frontend/dist/
+
+# 本地运行数据
+backend/data/*.sqlite3
+backend/data/backups/
+backend/data/migration_report.json
+
+# 本地备份目录
+phase1_backup/
+phase2_backup/
+phase2_frontend_backup/
+
+# 本地环境变量
+backend/.env

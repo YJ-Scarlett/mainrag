@@ -1,4 +1,4 @@
-﻿import React, {useEffect, useMemo, useRef, useState, createContext, useContext} from 'react';
+import React, {useEffect, useMemo, useRef, useState, createContext, useContext} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertCircle, BookOpen, Bot, Camera, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Database, Eye, File, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Music, Search, Send, Sparkles, Trash2, Upload, Users, Video, X} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -10,7 +10,6 @@ import EmptyQuestions from './assets/illustrations/empty-questions.svg';
 import EmptyCelebration from './assets/illustrations/empty-celebration.svg';
 import WelcomeLearning from './assets/illustrations/welcome-learning.svg';
 import UploadCloud from './assets/illustrations/upload-cloud.svg';
-import TeacherAvatar from './assets/avatars/teacher_clean.png';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 function apiAssetUrl(url){
@@ -21,9 +20,89 @@ function apiAssetUrl(url){
   if(url.startsWith('/'))return apiRoot+url;
   return `${API}/${url}`;
 }
-const requestCache=new Map();
-async function request(path, options={}) { const {cache=true,...fetchOptions}=options;let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}const method=(fetchOptions.method||'GET').toUpperCase();const cacheKey=`${role}:${path}`;if(method==='GET'&&cache&&requestCache.has(cacheKey)){const item=requestCache.get(cacheKey);if(Date.now()-item.time<10000)return item.data}const headers={...(fetchOptions.headers||{}),...(role?{'X-Role':role}:{})};const r=await fetch(API+path,{...fetchOptions,headers}); let data={};try{data=await r.json()}catch{data={detail:await r.text().catch(()=> '')}} if(!r.ok) throw new Error(data.detail||'请求失败'); if(method==='GET'&&cache)requestCache.set(cacheKey,{time:Date.now(),data}); return data; }
-const post=(path, body)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+const USER_STORAGE_KEY = 'mainrag-user';
+const TOKEN_STORAGE_KEY = 'mainrag-access-token';
+const requestCache = new Map();
+
+function readStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem(USER_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function readAccessToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+}
+
+function clearRequestCache() {
+  requestCache.clear();
+}
+
+function clearAuthSession({ redirect = false } = {}) {
+  localStorage.removeItem(USER_STORAGE_KEY);
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  clearRequestCache();
+  if (redirect && location.pathname !== '/login') {
+    location.assign('/login');
+  }
+}
+
+function authHeaders(extraHeaders = {}) {
+  const token = readAccessToken();
+  return {
+    ...extraHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function request(path, options = {}) {
+  const { cache = true, ...fetchOptions } = options;
+  const method = (fetchOptions.method || 'GET').toUpperCase();
+  const user = readStoredUser();
+  const cacheKey = `${user?.id || user?.username || 'anonymous'}:${path}`;
+
+  if (method === 'GET' && cache && requestCache.has(cacheKey)) {
+    const item = requestCache.get(cacheKey);
+    if (Date.now() - item.time < 10000) return item.data;
+  }
+
+  const response = await fetch(API + path, {
+    ...fetchOptions,
+    headers: authHeaders(fetchOptions.headers || {}),
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = { detail: await response.text().catch(() => '') };
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 && path !== '/login') {
+      clearAuthSession({ redirect: true });
+    }
+    const error = new Error(data.detail || '请求失败');
+    error.status = response.status;
+    throw error;
+  }
+
+  if (method === 'GET' && cache) {
+    requestCache.set(cacheKey, { time: Date.now(), data });
+  } else if (method !== 'GET') {
+    clearRequestCache();
+  }
+
+  return data;
+}
+
+const post = (path, body) => request(path, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
 // ===== Toast 全局提示 =====
 const ToastContext = createContext(null);
 
@@ -59,7 +138,8 @@ function Login({ onLogin }) {
     name: '',
     password: '',
     confirm: '',
-    role: 'student'
+    role: 'student',
+    teacher_invite_code: '',
   });
   const [fieldErrors, setFieldErrors] = useState({ name: '', password: '', confirm: '' });
 
@@ -94,7 +174,7 @@ function Login({ onLogin }) {
     if (m === 'login') {
       setForm({ username: role === 'student' ? 'student' : 'teacher', password: '123456' });
     } else {
-      setRegisterForm({ name: '', password: '', confirm: '', role: role });
+      setRegisterForm({ name: '', password: '', confirm: '', role, teacher_invite_code: '' });
     }
   };
 
@@ -103,8 +183,10 @@ function Login({ onLogin }) {
     setLoading(true);
     try {
       const d = await post('/login', { ...form, role });
-      localStorage.setItem('mainrag-user', JSON.stringify(d.user));
-      history.replaceState({}, '', `/${role}/home`);
+      clearRequestCache();
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(d.user));
+      localStorage.setItem(TOKEN_STORAGE_KEY, d.access_token);
+      history.replaceState({}, '', `/${d.user.role}/home`);
       onLogin(d.user);
     } catch (err) {
       setError(err.message);
@@ -131,15 +213,15 @@ function Login({ onLogin }) {
     }
     setLoading(true);
     try {
-      await post('/register', {
+      const result = await post('/register', {
         name: registerForm.name,
         password: registerForm.password,
-        role: registerForm.role
+        role: registerForm.role,
+        teacher_invite_code: registerForm.teacher_invite_code,
       });
       setMode('login');
-      const autoUsername = registerForm.role === 'student' ? `s_${registerForm.name}` : `t_${registerForm.name}`;
-      setForm({ username: autoUsername, password: registerForm.password });
-      setError(`注册成功！你的登录账号是：${autoUsername}`);
+      setForm({ username: result.user.username, password: registerForm.password });
+      setError(`注册成功！你的登录账号是：${result.user.username}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -225,6 +307,15 @@ function Login({ onLogin }) {
               />
               {fieldErrors.confirm && <div style={{ color: '#d9534f', fontSize: '12px', marginTop: '4px' }}>{fieldErrors.confirm}</div>}
             </label>
+            {registerForm.role === 'teacher' && (
+              <label>教师邀请码
+                <input
+                  value={registerForm.teacher_invite_code}
+                  onChange={e => setRegisterForm({ ...registerForm, teacher_invite_code: e.target.value })}
+                  placeholder="由管理员配置；未启用时可留空"
+                />
+              </label>
+            )}
             <button className="primary login-btn" disabled={loading}>
               {loading ? '注册中…' : '注册新账号'}
               <ChevronRight size={18} />
@@ -253,9 +344,9 @@ function Login({ onLogin }) {
     </div>
   );
 }
-const navs={student:[['dashboard','学习首页',LayoutDashboard],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['grading','试卷批改',CheckCircle2],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
-const pageSlug={dashboard:'home',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
-const slugPage={home:'dashboard',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
+const navs={student:[['dashboard','学习首页',LayoutDashboard],['classes','我的班级',Users],['knowledge','课程资料',Database],['exams','练习中心',ClipboardList],['wrongbook','错题本',AlertCircle],['chat','智能问答',MessageCircle],['analysis','我的学情',ChartNoAxesCombined]],teacher:[['dashboard','教学概览',LayoutDashboard],['classes','班级管理',Users],['knowledge','知识库',Database],['exams','习题管理',ClipboardList],['grading','试卷批改',CheckCircle2],['chat','问答助手',MessageCircle],['analysis','班级学情',ChartNoAxesCombined]]};
+const pageSlug={dashboard:'home',classes:'classes',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
+const slugPage={home:'dashboard',classes:'classes',knowledge:'knowledge',exams:'exams',grading:'grading',wrongbook:'wrongbook',chat:'chat',analysis:'analysis'};
 function initialPage(role){const [pathRole,slug]=location.pathname.split('/').filter(Boolean);const page=slugPage[slug];return pathRole===role&&page&&navs[role].some(item=>item[0]===page)?page:'dashboard'}
 function Shell({ user, onLogout }) {
   const [page, setPageState] = useState(() => initialPage(user.role)), [open, setOpen] = useState(false); const setPage = (next) => { setPageState(next); history.pushState({}, '', `/${user.role}/${pageSlug[next]}`) }; useEffect(() => { const pop = () => setPageState(initialPage(user.role)); addEventListener('popstate', pop); return () => removeEventListener('popstate', pop) }, [user.role]); const title = navs[user.role].find(n => n[0] === page)?.[1]; return <div className="app"><aside className={open ? 'open' : ''}><div className="logo"><div className="brand-mark"><GraduationCap /></div><span><b>知问课堂</b><small>TEACHING AGENT</small></span><button className="close" onClick={() => setOpen(false)}><X /></button></div><div className="side-label">{user.role === 'teacher' ? '教师工作台' : '学习空间'}</div><nav>{navs[user.role].map(([id, label, Icon]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => { setPage(id); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-user"><CircleUserRound /><span><b>{user.name}</b><small>{user.role === 'teacher' ? '计算机网络 · 教师' : '计算机网络 · 2023级'}</small></span><button onClick={onLogout}><LogOut /></button></div></aside><main>
@@ -299,7 +390,7 @@ function Shell({ user, onLogout }) {
     </header>
     <ErrorBoundary resetKey={page}>
       <div className="content">
-        {page === 'dashboard' ? <Dashboard user={user} go={setPage} /> : page === 'chat' ? <Chat user={user} /> : page === 'knowledge' ? <Knowledge user={user} /> : page === 'exams' ? <Exams user={user} /> : page === 'grading' ? <TeacherGrading /> : page === 'wrongbook' ? <Wrongbook user={user} /> : <Analysis role={user.role} />}
+        {page === 'dashboard' ? <Dashboard user={user} go={setPage} /> : page === 'classes' ? <ClassroomPage user={user} /> : page === 'chat' ? <Chat user={user} /> : page === 'knowledge' ? <Knowledge user={user} /> : page === 'exams' ? <Exams user={user} /> : page === 'grading' ? <TeacherGrading /> : page === 'wrongbook' ? <Wrongbook user={user} /> : <Analysis role={user.role} />}
       </div>
     </ErrorBoundary></main></div>
 }
@@ -367,6 +458,612 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+function formatClassroomDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
+
+function ClassroomPage({ user }) {
+  return user.role === 'teacher'
+    ? <TeacherClassroomPage user={user} />
+    : <StudentClassroomPage user={user} />;
+}
+
+function TeacherClassroomPage({ user }) {
+  const { showToast } = useContext(ToastContext);
+  const [classes, setClasses] = useState([]);
+  const [activeClassId, setActiveClassId] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [tab, setTab] = useState('members');
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [createName, setCreateName] = useState('');
+  const [studentUsername, setStudentUsername] = useState('');
+  const [teacherUsername, setTeacherUsername] = useState('');
+
+  const loadClasses = async (preferredClassId = '') => {
+    const data = await request('/classes', { cache: false });
+    const items = data.items || [];
+    setClasses(items);
+    const candidate = preferredClassId || activeClassId;
+    const nextId = items.some(item => item.id === candidate)
+      ? candidate
+      : (items[0]?.id || '');
+    setActiveClassId(nextId);
+    if (!nextId) {
+      setDetail(null);
+      setJoinRequests([]);
+    }
+    return nextId;
+  };
+
+  const loadDetail = async classId => {
+    if (!classId) return;
+    setDetailLoading(true);
+    setError('');
+    try {
+      const [classDetail, requestData] = await Promise.all([
+        request(`/classes/${encodeURIComponent(classId)}`, { cache: false }),
+        request(`/classes/${encodeURIComponent(classId)}/join-requests?status=pending`, { cache: false }),
+      ]);
+      setDetail(classDetail);
+      setJoinRequests(requestData.items || []);
+    } catch (err) {
+      setError(err.message);
+      setDetail(null);
+      setJoinRequests([]);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const refreshCurrent = async () => {
+    const nextId = await loadClasses(activeClassId);
+    if (nextId) await loadDetail(nextId);
+  };
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    request('/classes', { cache: false })
+      .then(data => {
+        if (!active) return;
+        const items = data.items || [];
+        setClasses(items);
+        setActiveClassId(items[0]?.id || '');
+      })
+      .catch(err => active && setError(err.message))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [user.id]);
+
+  useEffect(() => {
+    if (activeClassId) loadDetail(activeClassId);
+  }, [activeClassId]);
+
+  const createClass = async event => {
+    event.preventDefault();
+    const name = createName.trim();
+    if (!name || busy) return;
+    setBusy('create');
+    setError('');
+    try {
+      const data = await post('/classes', { name });
+      setCreateName('');
+      const newId = data.item?.id || '';
+      await loadClasses(newId);
+      if (newId) await loadDetail(newId);
+      showToast('班级创建成功');
+    } catch (err) {
+      setError(err.message);
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addStudent = async event => {
+    event.preventDefault();
+    const username = studentUsername.trim();
+    if (!username || !activeClassId || busy) return;
+    setBusy('add-student');
+    try {
+      await post(`/classes/${encodeURIComponent(activeClassId)}/students`, { username });
+      setStudentUsername('');
+      await refreshCurrent();
+      showToast('学生已加入班级');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addTeacher = async event => {
+    event.preventDefault();
+    const username = teacherUsername.trim();
+    if (!username || !activeClassId || busy) return;
+    setBusy('add-teacher');
+    try {
+      await post(`/classes/${encodeURIComponent(activeClassId)}/teachers`, { username });
+      setTeacherUsername('');
+      await refreshCurrent();
+      showToast('教师已加入班级');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const removeStudent = async student => {
+    if (!confirm(`确认将学生“${student.name}”移出本班吗？`)) return;
+    setBusy(`student-${student.id}`);
+    try {
+      await request(
+        `/classes/${encodeURIComponent(activeClassId)}/students/${encodeURIComponent(student.id)}`,
+        { method: 'DELETE' },
+      );
+      await refreshCurrent();
+      showToast('学生已移出班级');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const removeTeacher = async teacher => {
+    if (!confirm(`确认将教师“${teacher.name}”移出本班吗？`)) return;
+    setBusy(`teacher-${teacher.id}`);
+    try {
+      await request(
+        `/classes/${encodeURIComponent(activeClassId)}/teachers/${encodeURIComponent(teacher.id)}`,
+        { method: 'DELETE' },
+      );
+      await refreshCurrent();
+      showToast('教师已移出班级');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const reviewRequest = async (item, approve) => {
+    setBusy(`request-${item.id}`);
+    try {
+      await post(
+        `/classes/${encodeURIComponent(activeClassId)}/join-requests/${encodeURIComponent(item.id)}/${approve ? 'approve' : 'reject'}`,
+        { note: '' },
+      );
+      await refreshCurrent();
+      showToast(approve ? '已通过加入申请' : '已拒绝加入申请');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const copyInviteCode = async () => {
+    const code = detail?.classroom?.invite_code;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      showToast('班级邀请码已复制');
+    } catch {
+      showToast(`邀请码：${code}`, 'error');
+    }
+  };
+
+  const classroom = detail?.classroom;
+  const isOwner = classroom?.current_teacher_role === 'owner';
+
+  return (
+    <div className="classroom-page">
+      <section className="classroom-head">
+        <div>
+          <span className="eyebrow"><Users size={14} />班级权限空间</span>
+          <h1>班级管理</h1>
+          <p>管理你负责或参与的班级、教师成员、学生成员与加入申请。</p>
+        </div>
+        <form className="classroom-create-form" onSubmit={createClass}>
+          <input
+            value={createName}
+            onChange={event => setCreateName(event.target.value)}
+            placeholder="输入新班级名称"
+            maxLength={80}
+          />
+          <button className="primary" disabled={!createName.trim() || busy === 'create'}>
+            <Users size={17} />{busy === 'create' ? '创建中…' : '创建班级'}
+          </button>
+        </form>
+      </section>
+
+      {error && <div className="classroom-error"><AlertCircle />{error}</div>}
+
+      {loading ? (
+        <section className="panel classroom-loading">正在加载班级信息…</section>
+      ) : (
+        <div className="classroom-layout">
+          <aside className="panel classroom-list-panel">
+            <div className="classroom-panel-title">
+              <div><h3>我的班级</h3><small>共 {classes.length} 个</small></div>
+              <button type="button" onClick={() => loadClasses(activeClassId)} title="刷新班级列表"><RefreshCw /></button>
+            </div>
+            <div className="classroom-list">
+              {classes.length === 0 ? (
+                <div className="classroom-empty-small">尚未创建或加入班级</div>
+              ) : classes.map(item => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={activeClassId === item.id ? 'active' : ''}
+                  onClick={() => { setActiveClassId(item.id); setTab('members'); }}
+                >
+                  <span className="classroom-list-icon"><Users /></span>
+                  <span className="classroom-list-copy">
+                    <b>{item.name}</b>
+                    <small>{item.student_count} 名学生 · {item.teacher_count} 名教师</small>
+                  </span>
+                  <span className={`classroom-role-badge ${item.current_teacher_role}`}>
+                    {item.current_teacher_role === 'owner' ? '负责人' : '任课教师'}
+                  </span>
+                  {item.pending_request_count > 0 && <em>{item.pending_request_count}</em>}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <section className="classroom-main">
+            {!activeClassId ? (
+              <div className="panel classroom-empty">
+                <Users />
+                <h3>还没有班级</h3>
+                <p>在上方输入班级名称创建第一个班级。</p>
+              </div>
+            ) : detailLoading && !detail ? (
+              <div className="panel classroom-loading">正在读取班级详情…</div>
+            ) : classroom ? (
+              <>
+                <section className="panel classroom-summary">
+                  <div className="classroom-summary-title">
+                    <div>
+                      <span>{isOwner ? '我负责的班级' : '我参与的班级'}</span>
+                      <h2>{classroom.name}</h2>
+                      <small>创建于 {formatClassroomDate(classroom.created_at)}</small>
+                    </div>
+                    <button type="button" className="invite-code" onClick={copyInviteCode} title="点击复制邀请码">
+                      <small>学生邀请码</small>
+                      <b>{classroom.invite_code}</b>
+                      <span>复制</span>
+                    </button>
+                  </div>
+                  <div className="classroom-stats">
+                    <div><Users /><span><strong>{classroom.student_count}</strong><small>学生</small></span></div>
+                    <div><CircleUserRound /><span><strong>{classroom.teacher_count}</strong><small>教师</small></span></div>
+                    <div><ClipboardList /><span><strong>{classroom.pending_request_count}</strong><small>待审核申请</small></span></div>
+                  </div>
+                </section>
+
+                <div className="classroom-tabs">
+                  <button type="button" className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>成员管理</button>
+                  <button type="button" className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>
+                    加入申请
+                    {joinRequests.length > 0 && <em>{joinRequests.length}</em>}
+                  </button>
+                  <button type="button" className="classroom-refresh" onClick={refreshCurrent}><RefreshCw />刷新</button>
+                </div>
+
+                {tab === 'members' ? (
+                  <div className="classroom-member-grid">
+                    <section className="panel classroom-member-panel">
+                      <div className="classroom-panel-title">
+                        <div><h3>学生成员</h3><small>{detail.students?.length || 0} 人</small></div>
+                      </div>
+                      <form className="classroom-add-form" onSubmit={addStudent}>
+                        <input
+                          value={studentUsername}
+                          onChange={event => setStudentUsername(event.target.value)}
+                          placeholder="输入学生登录账号，例如 s_李同学"
+                        />
+                        <button className="primary" disabled={!studentUsername.trim() || busy === 'add-student'}>
+                          {busy === 'add-student' ? '添加中…' : '添加学生'}
+                        </button>
+                      </form>
+                      <div className="classroom-members">
+                        {(detail.students || []).length === 0 ? (
+                          <div className="classroom-empty-small">本班暂时没有学生</div>
+                        ) : detail.students.map(student => (
+                          <div className="classroom-member-row" key={student.id}>
+                            <span className="classroom-avatar">{student.name.slice(0, 1)}</span>
+                            <span className="classroom-member-copy">
+                              <b>{student.name}</b>
+                              <small>{student.username} · {formatClassroomDate(student.joined_at)} 加入</small>
+                            </span>
+                            <button
+                              type="button"
+                              className="classroom-danger-link"
+                              disabled={busy === `student-${student.id}`}
+                              onClick={() => removeStudent(student)}
+                            >移出</button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="panel classroom-member-panel">
+                      <div className="classroom-panel-title">
+                        <div><h3>教师成员</h3><small>{detail.teachers?.length || 0} 人</small></div>
+                      </div>
+                      {isOwner ? (
+                        <form className="classroom-add-form" onSubmit={addTeacher}>
+                          <input
+                            value={teacherUsername}
+                            onChange={event => setTeacherUsername(event.target.value)}
+                            placeholder="输入教师登录账号，例如 t_王老师"
+                          />
+                          <button className="primary" disabled={!teacherUsername.trim() || busy === 'add-teacher'}>
+                            {busy === 'add-teacher' ? '添加中…' : '添加教师'}
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="classroom-permission-note">只有班级负责人可以增删教师成员。</div>
+                      )}
+                      <div className="classroom-members">
+                        {(detail.teachers || []).map(teacher => (
+                          <div className="classroom-member-row" key={teacher.id}>
+                            <span className="classroom-avatar teacher">{teacher.name.slice(0, 1)}</span>
+                            <span className="classroom-member-copy">
+                              <b>{teacher.name}</b>
+                              <small>{teacher.username}</small>
+                            </span>
+                            <span className={`classroom-role-badge ${teacher.class_role}`}>
+                              {teacher.class_role === 'owner' ? '负责人' : '任课教师'}
+                            </span>
+                            {isOwner && teacher.class_role !== 'owner' && (
+                              <button
+                                type="button"
+                                className="classroom-danger-link"
+                                disabled={busy === `teacher-${teacher.id}`}
+                                onClick={() => removeTeacher(teacher)}
+                              >移出</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <section className="panel classroom-request-panel">
+                    <div className="classroom-panel-title">
+                      <div><h3>待审核加入申请</h3><small>学生通过邀请码提交</small></div>
+                    </div>
+                    <div className="classroom-requests">
+                      {joinRequests.length === 0 ? (
+                        <div className="classroom-empty">
+                          <CheckCircle2 />
+                          <h3>暂无待审核申请</h3>
+                          <p>新的学生申请会出现在这里。</p>
+                        </div>
+                      ) : joinRequests.map(item => (
+                        <div className="classroom-request-row" key={item.id}>
+                          <span className="classroom-avatar">{item.student.name.slice(0, 1)}</span>
+                          <span className="classroom-member-copy">
+                            <b>{item.student.name}</b>
+                            <small>{item.student.username} · 申请于 {formatClassroomDate(item.created_at)}</small>
+                          </span>
+                          <div className="classroom-request-actions">
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              disabled={busy === `request-${item.id}`}
+                              onClick={() => reviewRequest(item, false)}
+                            >拒绝</button>
+                            <button
+                              type="button"
+                              className="primary"
+                              disabled={busy === `request-${item.id}`}
+                              onClick={() => reviewRequest(item, true)}
+                            >通过</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : null}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentClassroomPage({ user }) {
+  const { showToast } = useContext(ToastContext);
+  const [classroomData, setClassroomData] = useState(null);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [inviteCode, setInviteCode] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  const loadStudentClassroom = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [classData, requestData] = await Promise.all([
+        request('/classes/student/me', { cache: false }),
+        request('/classes/student/join-requests', { cache: false }),
+      ]);
+      setClassroomData(classData.item || null);
+      setJoinRequests(requestData.items || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStudentClassroom();
+  }, [user.id]);
+
+  const applyToClass = async event => {
+    event.preventDefault();
+    const code = inviteCode.trim().toUpperCase();
+    if (!code || busy) return;
+    setBusy('apply');
+    try {
+      await post('/classes/student/join-requests', { invite_code: code });
+      setInviteCode('');
+      await loadStudentClassroom();
+      showToast('加入申请已提交，请等待教师审核');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const cancelRequest = async item => {
+    if (!confirm(`确认取消加入“${item.class_name}”的申请吗？`)) return;
+    setBusy(`cancel-${item.id}`);
+    try {
+      await request(`/classes/student/join-requests/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+      await loadStudentClassroom();
+      showToast('加入申请已取消');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const requestStatus = {
+    pending: ['待审核', 'pending'],
+    approved: ['已通过', 'approved'],
+    rejected: ['已拒绝', 'rejected'],
+    cancelled: ['已取消', 'cancelled'],
+  };
+
+  const classroom = classroomData?.classroom;
+
+  return (
+    <div className="classroom-page student-classroom-page">
+      <section className="classroom-head">
+        <div>
+          <span className="eyebrow"><Users size={14} />我的学习归属</span>
+          <h1>我的班级</h1>
+          <p>查看所在班级与任课教师；尚未分班时可使用邀请码申请加入。</p>
+        </div>
+        <button type="button" className="secondary-btn" onClick={loadStudentClassroom}><RefreshCw />刷新</button>
+      </section>
+
+      {error && <div className="classroom-error"><AlertCircle />{error}</div>}
+
+      {loading ? (
+        <section className="panel classroom-loading">正在加载班级信息…</section>
+      ) : classroom ? (
+        <>
+          <section className="panel student-class-card">
+            <div className="student-class-main">
+              <span className="student-class-icon"><GraduationCap /></span>
+              <div>
+                <small>当前所在班级</small>
+                <h2>{classroom.name}</h2>
+                <p>加入时间：{formatClassroomDate(classroom.joined_at)}</p>
+              </div>
+            </div>
+            <div className="student-class-counts">
+              <span><strong>{classroom.student_count}</strong><small>班级学生</small></span>
+              <span><strong>{classroom.teacher_count}</strong><small>任课教师</small></span>
+            </div>
+          </section>
+
+          <section className="panel student-teacher-panel">
+            <div className="classroom-panel-title">
+              <div><h3>本班教师</h3><small>你可以查看当前班级的教师成员</small></div>
+            </div>
+            <div className="student-teacher-grid">
+              {(classroomData.teachers || []).map(teacher => (
+                <article key={teacher.id}>
+                  <span className="classroom-avatar teacher">{teacher.name.slice(0, 1)}</span>
+                  <div><b>{teacher.name}</b><small>{teacher.username}</small></div>
+                  <em>{teacher.class_role === 'owner' ? '班级负责人' : '任课教师'}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <div className="student-join-layout">
+          <section className="panel student-join-card">
+            <span className="student-join-icon"><Users /></span>
+            <h2>你还没有加入班级</h2>
+            <p>向教师获取8位班级邀请码，提交后由班级教师审核。</p>
+            <form onSubmit={applyToClass}>
+              <input
+                value={inviteCode}
+                onChange={event => setInviteCode(event.target.value.toUpperCase())}
+                placeholder="输入班级邀请码"
+                maxLength={20}
+              />
+              <button className="primary" disabled={!inviteCode.trim() || busy === 'apply'}>
+                {busy === 'apply' ? '提交中…' : '申请加入班级'}
+              </button>
+            </form>
+          </section>
+
+          <section className="panel student-request-history">
+            <div className="classroom-panel-title">
+              <div><h3>我的申请记录</h3><small>同一时间只能有一个待审核申请</small></div>
+            </div>
+            <div className="classroom-requests">
+              {joinRequests.length === 0 ? (
+                <div className="classroom-empty-small">暂无班级申请记录</div>
+              ) : joinRequests.map(item => {
+                const status = requestStatus[item.status] || [item.status, item.status];
+                return (
+                  <div className="student-request-row" key={item.id}>
+                    <div>
+                      <b>{item.class_name}</b>
+                      <small>提交于 {formatClassroomDate(item.created_at)}</small>
+                      {item.review_note && <p>{item.review_note}</p>}
+                    </div>
+                    <span className={`join-status ${status[1]}`}>{status[0]}</span>
+                    {item.status === 'pending' && (
+                      <button
+                        type="button"
+                        className="classroom-danger-link"
+                        disabled={busy === `cancel-${item.id}`}
+                        onClick={() => cancelRequest(item)}
+                      >取消申请</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Stat({icon:Icon,label,value,detail,tone}){return <div className={'stat '+tone}><div className="stat-icon"><Icon/></div><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>}
 function Dashboard({user, go}) {
   const role = user.role;
@@ -375,7 +1072,7 @@ function Dashboard({user, go}) {
   useEffect(() => {
   const url = role === 'teacher' 
     ? '/analysis/class' 
-    : `/analysis/student?student=${encodeURIComponent(user.name)}`;
+    : '/analysis/student';
   request(url)
     .then(setData);
 }, [role, user.name]);
@@ -539,7 +1236,7 @@ function MarkdownText({text,sources=[],onSourceClick}){
     const blockText=block.type==='ol'||block.type==='ul'?block.items.join('\n'):block.text||'';
     groups[index]=sourceRefsForText(blockText,sources);
   });
-  if(!groups.some(group=>group.length)&&sources.length){
+  if(!groups.some(group=>group.length)&&sources.some(source=>source?.start_time!==undefined&&source?.start_time!==null)){
     const firstTextBlock=parsed.findIndex(block=>block.type!=='heading');
     if(firstTextBlock>=0)groups[firstTextBlock]=sources.map((source,index)=>({source,index}));
   }
@@ -577,74 +1274,22 @@ function parseMediaCaptions(content=''){
 function DigitalHumanAsk({user,selectedDoc}) {
   const {showToast}=useContext(ToastContext);
   const [input,setInput]=useState('');
-  const [avatarMessages,setAvatarMessages]=useState([]);
+  const [answer,setAnswer]=useState('');
+  const [sources,setSources]=useState([]);
   const [loading,setLoading]=useState(false);
   const [status,setStatus]=useState('等待提问');
-  const [avatarReload,setAvatarReload]=useState(0);
-  const [avatarLive,setAvatarLive]=useState(false);
   const avatarFrameRef=useRef(null);
-  const avatarConnectionRef=useRef(false);
-  const chatEndRef=useRef(null);
   const baseAvatarUrl=import.meta.env.VITE_AVATAR_URL||'http://localhost:8282/ui/index.html';
-  const avatarUrl=useMemo(()=>{
-    const sep=baseAvatarUrl.includes('?')?'&':'?';
-    return `${baseAvatarUrl}${sep}mainrag_embed=1&v=20260719-sync-bg-${avatarReload}`;
-  },[baseAvatarUrl,avatarReload]);
+  const avatarUrl=baseAvatarUrl.includes('?')?`${baseAvatarUrl}&mainrag_embed=1`:`${baseAvatarUrl}?mainrag_embed=1`;
   const cleanAvatarText=text=>String(text||'').replace(/\*\*/g,'').replace(/[#>`]/g,'').replace(/\n{3,}/g,'\n\n').trim();
-  const closeAvatarConnection=()=>{
-    try{
-      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-close'},'*');
-    }catch{}
-  };
-  const openSource=source=>{
-    if(!source?.document_id)return;
-    const params=new URLSearchParams({
-      doc:source.document_id,
-      name:source.document||'',
-      page:String(source.page||''),
-      chunk:String(source.chunk||'')
-    });
-    if(source.start_time!==undefined&&source.start_time!==null)params.set('start',String(source.start_time));
-    if(source.end_time!==undefined&&source.end_time!==null)params.set('end',String(source.end_time));
-    closeAvatarConnection();
-    setStatus('正在关闭数字人连接并跳转知识库');
-    window.setTimeout(()=>location.assign(`/${user.role}/knowledge?${params.toString()}`),500);
-  };
-  useEffect(()=>{
-    const onAvatarStatus=event=>{
-      const data=event.data||{};
-      if(data.type!=='mainrag-avatar-status')return;
-      if(['closed','open','error'].includes(data.status))avatarConnectionRef.current=true;
-      if(data.status==='open'||data.status==='playing')setAvatarLive(true);
-      if(data.status==='closed'||data.status==='error')setAvatarLive(false);
-      const map={closed:'数字人连接未开启',mounted:'数字人页面已挂载，正在准备连接',offer:'正在发起 WebRTC 连接',waiting:'正在连接数字人',open:'数字人已连接，可提问讲解',playing:'数字人视频已开始播放',error:`数字人连接失败：${data.message||''}`};
-      setStatus(map[data.status]||String(data.status||'数字人状态更新'));
-    };
-    window.addEventListener('message',onAvatarStatus);
-    return()=>window.removeEventListener('message',onAvatarStatus);
-  },[]);
-  useEffect(()=>{
-    avatarConnectionRef.current=false;
-    const timer=window.setTimeout(()=>{
-      if(!avatarConnectionRef.current){
-        setStatus('数字人连接超时：请重启 OpenAvatarChat，并确认 8282 页面可直接打开');
-      }
-    },10000);
-    return()=>window.clearTimeout(timer);
-  },[avatarReload]);
-  useEffect(()=>()=>closeAvatarConnection(),[]);
-  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:'smooth',block:'end'})},[avatarMessages,loading]);
-  const latestAnswer=useMemo(()=>[...avatarMessages].reverse().find(item=>item.role==='ai'&&item.text)?.text||'',[avatarMessages]);
-  const updateAiMessage=(id,patch)=>setAvatarMessages(items=>items.map(item=>item.id===id?{...item,...patch,text:patch.append?item.text+patch.append:patch.text??item.text}:item));
   const sendToAvatar=text=>{
     const cleaned=cleanAvatarText(text);
     if(!cleaned){showToast('暂无可讲解内容','error');return}
     setStatus('正在发送给数字人');
     try{
-      const target=avatarFrameRef.current?.contentWindow;
-      [0,800,2000,4000].forEach(delay=>window.setTimeout(()=>target?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*'),delay));
+      avatarFrameRef.current?.contentWindow?.postMessage({type:'mainrag-avatar-speak',text:cleaned},'*');
       navigator.clipboard?.writeText(cleaned).catch(()=>{});
-      setStatus('已发送给数字人讲解。如果没有声音，请确认 OpenAvatarChat 已重启并加载完成。');
+      setStatus('已发送给数字人讲解');
       showToast('数字人讲解已发送');
     }catch{
       setStatus('发送失败，可手动复制讲解稿到数字人输入框');
@@ -653,30 +1298,31 @@ function DigitalHumanAsk({user,selectedDoc}) {
   const ask=async(q=input)=>{
     const question=String(q||'').trim();
     if(!question||loading)return;
-    const spokenPrompt='请用适合数字人口播的方式回答，控制在 140 字以内，先讲清核心结论，再补充两到三个关键点，语言自然口语化。';
-    const scopedQuestion=selectedDoc?`${spokenPrompt}\n请优先结合资料《${selectedDoc.name}》回答：${question}`:`${spokenPrompt}\n学生问题：${question}`;
-    const userId=`u-${Date.now()}`;
-    const aiId=`a-${Date.now()}`;
+    const scopedQuestion=selectedDoc?`请优先结合资料《${selectedDoc.name}》回答：${question}`:question;
     setInput('');
-    setAvatarMessages(items=>[...items,{id:userId,role:'user',text:question},{id:aiId,role:'ai',text:'',sources:[],streaming:true}]);
+    setAnswer('');
+    setSources([]);
     setLoading(true);
     setStatus('正在检索知识库并生成回答');
     let pendingText='';
     let updateTimer=null;
     const flush=()=>{
       if(pendingText){
-        updateAiMessage(aiId,{append:pendingText,streaming:true});
+        setAnswer(text=>text+pendingText);
         pendingText='';
       }
       updateTimer=null;
     };
     const schedule=()=>{if(!updateTimer)updateTimer=setTimeout(flush,30)};
     try{
-      let role='';
-      try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
       let gotDone=false;
-      const response=await fetch(API+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',...(role?{'X-Role':role}:{})},body:JSON.stringify({message:scopedQuestion,student:user.name})});
+      const response=await fetch(API+'/chat/stream',{
+        method:'POST',
+        headers:authHeaders({'Content-Type':'application/json'}),
+        body:JSON.stringify({message:scopedQuestion})
+      });
       if(!response.ok){
+        if(response.status===401){clearAuthSession({redirect:true});return}
         let data={};
         try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}
         throw new Error(data.detail||'请求失败');
@@ -698,12 +1344,13 @@ function DigitalHumanAsk({user,selectedDoc}) {
           try{
             const event=JSON.parse(jsonStr);
             if(event.type==='delta'){pendingText+=event.content||'';schedule()}
-            if(event.type==='sources')updateAiMessage(aiId,{sources:event.sources||[]});
+            if(event.type==='sources')setSources(event.sources||[]);
             if(event.type==='done'){
               gotDone=true;
               if(updateTimer)clearTimeout(updateTimer);
               pendingText='';
-              updateAiMessage(aiId,{text:event.answer||'',sources:event.sources||[],streaming:false});
+              setAnswer(event.answer||'');
+              setSources(event.sources||[]);
               setStatus('回答完成，正在驱动数字人讲解');
               setTimeout(()=>sendToAvatar(event.answer||''),0);
             }
@@ -713,55 +1360,18 @@ function DigitalHumanAsk({user,selectedDoc}) {
         }
       }
       if(updateTimer)clearTimeout(updateTimer);
-      if(pendingText)updateAiMessage(aiId,{append:pendingText,streaming:true});
-      if(!gotDone){
-        updateAiMessage(aiId,{streaming:false});
-        setStatus('回答已生成，但未收到结束信号，可重新播放当前讲解');
-      }
+      if(pendingText)setAnswer(text=>text+pendingText);
+      if(!gotDone)setStatus('回答已生成，但未收到结束信号，可重新播放当前讲解');
     }catch(error){
       if(updateTimer)clearTimeout(updateTimer);
-      updateAiMessage(aiId,{text:error.message||'回答生成失败',sources:[],streaming:false});
+      setAnswer(error.message||'回答生成失败');
       setStatus('回答生成失败');
     }finally{
       setLoading(false);
     }
   };
-  return (
-    <section className="panel kb-avatar-panel">
-      <div className="kb-avatar-head">
-        <div>
-          <span className="eyebrow"><Video size={14}/>数字人问答助手</span>
-          <h3>数字人自动对话</h3>
-          <p>{selectedDoc?`当前优先参考：${selectedDoc.name}`:'提问后自动检索知识库、自动生成回答，并自动驱动数字人讲解。'}</p>
-        </div>
-        <div className="kb-avatar-status">
-          <small>{status}</small>
-          <button type="button" onClick={()=>{closeAvatarConnection();setAvatarLive(false);setStatus('正在重新连接数字人');window.setTimeout(()=>setAvatarReload(v=>v+1),300)}}><RefreshCw size={13}/>重连</button>
-        </div>
-      </div>
-      <div className="kb-avatar-grid">
-        <div className="kb-avatar-stage">
-          <img className={`kb-avatar-fallback ${avatarLive?'is-hidden':''}`} src={TeacherAvatar} alt="数字人形象"/>
-          <iframe key={avatarReload} ref={avatarFrameRef} src={avatarUrl} title="知问数字人" allow="autoplay; microphone; camera" onLoad={()=>{avatarConnectionRef.current=false;setStatus('数字人页面已加载，正在连接服务')}}/>
-        </div>
-        <div className="kb-avatar-dialog kb-avatar-chatbox">
-          <div className="kb-avatar-chat">
-            {avatarMessages.length===0
-              ? <div className="kb-avatar-empty"><Bot size={22}/><b>和数字人开始对话</b><p>输入问题后，系统会先检索 mainrag 知识库，再自动让数字人开口讲解。</p></div>
-              : avatarMessages.map(item=><div className={`kb-avatar-message ${item.role}`} key={item.id}>{item.role==='ai'&&<div className="kb-avatar-message-icon"><Sparkles size={15}/></div>}<div className="kb-avatar-bubble">{item.role==='ai'?<><MarkdownText text={item.text||'正在生成讲解…'} sources={item.sources||[]} onSourceClick={openSource}/>{item.streaming&&<span className="stream-cursor">|</span>}{item.sources?.length>0&&<div className="kb-avatar-sources compact"><b>参考来源</b>{item.sources.slice(0,3).map((s,i)=><button type="button" key={`${item.id}-${s.document}-${i}`} onClick={()=>openSource(s)} title={`来源 ${i+1}：点击跳转到对应文档和位置`}><i>{i+1}</i><span>{s.document} · {sourceLocationLabel(s)}</span></button>)}</div>}</>:item.text}</div></div>)}
-            <div ref={chatEndRef}/>
-          </div>
-        </div>
-      </div>
-      <div className="kb-avatar-compose-bar">
-        <div className="kb-avatar-input">
-          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask()}}} placeholder="输入问题，Enter 发送，回答完成后数字人会自动讲解..."/>
-          <button type="button" onClick={()=>ask()} disabled={loading}><Send size={16}/>{loading?'生成中':'发送'}</button>
-        </div>
-        <button className="secondary-btn kb-avatar-resend" type="button" onClick={()=>sendToAvatar(latestAnswer)} disabled={!latestAnswer}>重播最新讲解</button>
-      </div>
-    </section>
-  )
+  const presets=selectedDoc?[`讲解这份资料的核心内容`,`根据这份资料出一道例题并讲解`,`总结这份资料的易错点`]:['TCP 如何保证可靠传输？','HTTP 和 HTTPS 有什么区别？','数据库事务 ACID 是什么？'];
+  return <section className="panel kb-avatar-panel"><div className="kb-avatar-head"><div><span className="eyebrow"><Video size={14}/>数字人问答助手</span><h3>数字人交互讲解</h3><p>{selectedDoc?`当前优先参考：${selectedDoc.name}`:'先启动 OpenAvatarChat，然后在这里提问即可。'}</p></div><small>{status}</small></div><div className="kb-avatar-grid"><div className="kb-avatar-stage"><iframe ref={avatarFrameRef} src={avatarUrl} title="知问数字人"/></div><div className="kb-avatar-dialog"><div className="kb-avatar-presets">{presets.map(item=><button type="button" key={item} onClick={()=>ask(item)} disabled={loading}>{item}</button>)}</div><div className="kb-avatar-answer">{answer?<MarkdownText text={answer} sources={sources}/>:<p>输入问题后，系统会先调用 mainrag 知识库问答生成讲解稿，再让数字人直接开口讲解。</p>}</div>{sources.length>0&&<div className="kb-avatar-sources"><b>参考来源</b>{sources.slice(0,3).map((s,i)=><span key={`${s.document}-${i}`}>{i+1}. {s.document} · {sourceLocationLabel(s)}</span>)}</div>}<div className="kb-avatar-input"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask()}}} placeholder="输入要让数字人讲解的问题，Enter 发送..."/><button type="button" onClick={()=>ask()} disabled={loading}><Send size={16}/>{loading?'生成中':'发送'}</button></div><button className="secondary-btn kb-avatar-resend" type="button" onClick={()=>sendToAvatar(answer)} disabled={!answer}>重新播放当前讲解</button></div></div></section>
 }
 function Chat({user}){
   const { showToast } = useContext(ToastContext);
@@ -790,7 +1400,7 @@ function Chat({user}){
     }
   };
   useEffect(()=>()=>{if(photoPreview?.url)URL.revokeObjectURL(photoPreview.url)},[photoPreview?.url]);
-  const loadHistory=()=>request(`/chat/history?student=${encodeURIComponent(user.name)}&limit=20`).then(d=>setHistoryItems(d.items||[])).catch(()=>{});
+  const loadHistory=()=>request('/chat/history?limit=20').then(d=>setHistoryItems(d.items||[])).catch(()=>{});
   useEffect(() => { loadHistory(); }, [user.name]);
   const openHistory=item=>{
     const isPhoto=item.kind==='photo_search'||item.image_url||item.ocr_text||String(item.question||'').startsWith('拍照搜题');
@@ -803,7 +1413,7 @@ function Chat({user}){
     ])
   };
   const deleteHistory=(e,item)=>{e.stopPropagation();setPendingDeleteItem(item);setShowDeleteConfirm(true);};
-  const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}?student=${encodeURIComponent(user.name)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);showToast('历史记录已删除 ✅');};
+  const confirmDeleteHistory=async()=>{const item=pendingDeleteItem;if(!item)return;setShowDeleteConfirm(false);await request(`/chat/history/${encodeURIComponent(item.id)}`,{method:'DELETE'});setHistoryItems(items=>items.filter(x=>x.id!==item.id));if(activeHistory===item.id){setActiveHistory('');setMessages([welcome])}setPendingDeleteItem(null);showToast('历史记录已删除 ✅');};
   const appendToLastAi=(patch)=>setMessages(items=>items.map((m,i)=>i===items.length-1&&m.role==='ai'?{...m,...patch,text:(patch.append?m.text+patch.append:patch.text??m.text)}:m));
   const openSource = s => { if (!s?.document_id) return; const params = new URLSearchParams({ doc: s.document_id, name: s.document || '', page: String(s.page || ''), chunk: String(s.chunk || '') }); if (s.start_time !== undefined && s.start_time !== null) params.set('start', String(s.start_time)); if (s.end_time !== undefined && s.end_time !== null) params.set('end', String(s.end_time)); location.assign(`/${user.role}/knowledge?${params.toString()}`) };
   const send = async (q = input) => {
@@ -829,15 +1439,14 @@ function Chat({user}){
       }
     };
     try {
-      let role = '';
-      try { role = JSON.parse(localStorage.getItem('mainrag-user'))?.role || '' } catch { }
       let gotDone = false;
       const response = await fetch(API + '/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(role ? { 'X-Role': role } : {}) },
-        body: JSON.stringify({ message: question, student: user.name })
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ message: question })
       });
       if (!response.ok) {
+        if (response.status === 401) { clearAuthSession({ redirect: true }); return; }
         let data = {};
         try { data = await response.json() } catch { data = { detail: await response.text().catch(() => '') } }
         throw new Error(data.detail || '请求失败');
@@ -904,13 +1513,18 @@ function Chat({user}){
     setPhotoLoading(true);
     setMessages(m=>[...m,{role:'user',text:`拍照搜题：${file.name}`,image:previewUrl},{role:'ai',text:'正在识别题目并检索课程知识库…',sources:[],streaming:true}]);
     try{
-      let role='';try{role=JSON.parse(localStorage.getItem('mainrag-user'))?.role||''}catch{}
       const fd=new FormData();
-      fd.append('student',user.name);
       fd.append('file',file);
-      const response=await fetch(API+'/chat/photo-search',{method:'POST',headers:{...(role?{'X-Role':role}:{})},body:fd});
+      const response=await fetch(API+'/chat/photo-search',{
+        method:'POST',
+        headers:authHeaders(),
+        body:fd
+      });
       let data={};try{data=await response.json()}catch{data={detail:await response.text().catch(()=> '')}}
-      if(!response.ok)throw new Error(data.detail||'拍照搜题失败');
+      if(!response.ok){
+        if(response.status===401){clearAuthSession({redirect:true});return}
+        throw new Error(data.detail||'拍照搜题失败');
+      }
       setPhotoPreview(old=>old?{...old,ocrText:data.ocr_text||'',status:'识别完成，可在输入框中修改题目文字'}:old);
       setMessages(items=>items.map((m,i)=>i===items.length-2&&m.role==='user'?{...m,ocrText:data.ocr_text||''}:m));
       appendToLastAi({text:`**识别题目：**\n${data.ocr_text}\n\n${data.answer}`,sources:data.sources||[],streaming:false});
@@ -964,7 +1578,7 @@ function Knowledge({ user }) {
   useEffect(() => { if (activeCaption < 0 || !captionListRef.current) return; const item = captionListRef.current.querySelector(`[data-caption-index="${activeCaption}"]`); item?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }, [activeCaption]);
   const view = async (id, page = '') => { try { setTargetPage(page); const doc = await request('/knowledge/' + id); setSelected(doc); setMsg('') } catch (e) { setMsg(e.message) } };
   const download = d => { window.open(`${API}/knowledge/${d.id}/download`, '_blank') };
-  const upload = e => { const file = e.target.files[0]; if (!file) return; e.target.value = ''; const isMedia = /\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name); setUploading(true); setProgress(0); setStage('正在上传文件'); setUploadName(file.name); setMsg(''); const fd = new FormData(); fd.append('file', file); fd.append('category', '课程资料'); const xhr = new XMLHttpRequest(); let timer; xhr.open('POST', API + '/knowledge/upload'); xhr.setRequestHeader('X-Role', 'teacher'); xhr.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 65)) }; xhr.upload.onload = () => { setProgress(p => Math.max(p, 66)); setStage(isMedia ? '正在转写音视频并建立向量索引' : '正在解析文档并建立向量索引'); timer = setInterval(() => setProgress(p => p < 94 ? p + 1 : p), 700) }; xhr.onload = () => { clearInterval(timer); let data = {}; try { data = JSON.parse(xhr.responseText) } catch { } if (xhr.status >= 200 && xhr.status < 300) { setProgress(100); setStage(isMedia ? '上传完成，音视频已转写入库' : '上传完成，预览后台处理中'); setMsg(data.message || (isMedia ? '上传成功，音视频已转写并可用于检索问答' : '上传成功，预览正在后台生成')); load(true); setTimeout(() => setUploading(false), 800) } else { setUploading(false); setMsg(data.detail || '上传处理失败') } }; xhr.onerror = () => { clearInterval(timer); setUploading(false); setMsg('网络错误，上传失败') }; xhr.send(fd) };
+  const upload = e => { const file = e.target.files[0]; if (!file) return; e.target.value = ''; const isMedia = /\.(mp3|wav|m4a|aac|flac|ogg|wma|mp4|mov|avi|mkv|webm|wmv|flv)$/i.test(file.name); setUploading(true); setProgress(0); setStage('正在上传文件'); setUploadName(file.name); setMsg(''); const fd = new FormData(); fd.append('file', file); fd.append('category', '课程资料'); const xhr = new XMLHttpRequest(); let timer; xhr.open('POST', API + '/knowledge/upload'); const token = readAccessToken(); if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`); xhr.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 65)) }; xhr.upload.onload = () => { setProgress(p => Math.max(p, 66)); setStage(isMedia ? '正在转写音视频并建立向量索引' : '正在解析文档并建立向量索引'); timer = setInterval(() => setProgress(p => p < 94 ? p + 1 : p), 700) }; xhr.onload = () => { clearInterval(timer); let data = {}; try { data = JSON.parse(xhr.responseText) } catch { } if (xhr.status === 401) { setUploading(false); clearAuthSession({ redirect: true }); return; } if (xhr.status >= 200 && xhr.status < 300) { setProgress(100); setStage(isMedia ? '上传完成，音视频已转写入库' : '上传完成，预览后台处理中'); setMsg(data.message || (isMedia ? '上传成功，音视频已转写并可用于检索问答' : '上传成功，预览正在后台生成')); load(true); setTimeout(() => setUploading(false), 800) } else { setUploading(false); setMsg(data.detail || '上传处理失败') } }; xhr.onerror = () => { clearInterval(timer); setUploading(false); setMsg('网络错误，上传失败') }; xhr.send(fd) };
   const del = (id) => { setPendingDeleteId(id); setShowDeleteConfirm(true); };
   const confirmDelete = async () => {
     const id = pendingDeleteId;
@@ -1658,11 +2272,9 @@ const closeReinforcement = () => {
   });
 };
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('mainrag-user'));
-
     const url = role === 'teacher'
       ? '/analysis/class'
-      : `/analysis/student?student=${encodeURIComponent(user.name)}`;
+      : '/analysis/student';
 
     request(url)
       .then(setData)
@@ -2161,14 +2773,14 @@ function TeacherExams() {
     )}
   </>
 }
-function StudentExamsLegacy({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`)]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(() => {
+function StudentExamsLegacy({user}){const [items,setItems]=useState([]),[subs,setSubs]=useState([]),[active,setActive]=useState(null),[answers,setAnswers]=useState({}),[result,setResult]=useState(null);const [showConfirm, setShowConfirm] = useState(false);const [pendingSubmit, setPendingSubmit] = useState(null); const load=()=>Promise.all([request('/exams?published_only=true'),request('/exams/student/submissions')]).then(([e,s])=>{setItems(e.items);setSubs(s.items)});useEffect(() => {
   load();
 }, []);const submitted=id=>subs.find(s=>s.exam_id===id);const open=exam=>{setActive(exam);setAnswers({});setResult(null)};const submit = () => {
   setShowConfirm(true);
 };
 const doSubmit = async () => {
   setShowConfirm(false);
-  const data = await post(`/exams/${active.id}/submit`, { student: user.name, answers });
+  const data = await post(`/exams/${active.id}/submit`, { answers });
   setResult(data);
   load();
 };if(active)return <section className="panel take-exam"><button className="back-link" onClick={()=>setActive(null)}>← 返回练习中心</button><div className="take-head"><div><h1>{active.title}</h1><p>{active.document_name} · {active.chapter}</p></div>{result&&<strong>{result.score}/{result.total}</strong>}</div>{active.questions.map((q,i)=>{const detail=result?.details.find(d=>d.id===q.id);return <article className={'question '+(detail?(detail.correct?'correct':'wrong'):'')} key={q.id}><h3><span>{i+1}</span><em className="question-type">{questionTypeText(q.type)}</em>{q.question}</h3>{q.options?.length>0?<div className="options">{q.options.map(option=>{const value=option.match(/^([A-Za-z])\./)?.[1]||option;return <label key={option}><input type="radio" name={q.id} disabled={!!result} checked={answers[q.id]===value} onChange={()=>setAnswers({...answers,[q.id]:value})}/><span>{option}</span></label>})}</div>:q.type==='fill'?<input className="fill-answer" disabled={!!result} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})} placeholder="???????"/>:<textarea disabled={!!result} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})} placeholder="???????"/>}{detail&&!detail.correct&&<div className="answer-detail"><b>正确答案：{detail.answer}</b><p>{detail.analysis}</p></div>}</article>})}{!result?<button className="primary submit-exam" onClick={submit}>提交练习</button>:<button className="primary submit-exam" onClick={()=>setActive(null)}>完成并返回</button>}{showConfirm && (
@@ -2194,10 +2806,33 @@ function StudentExams({ user }) {
   const [error, setError] = useState('');
   const load = () => Promise.all([
     request('/exams?published_only=true', { cache: false }),
-    request(`/exams/student/submissions?student=${encodeURIComponent(user.name)}`, { cache: false })
+    request('/exams/student/submissions', { cache: false })
   ]).then(([exams, submissions]) => { setItems(exams.items); setSubs(submissions.items) });
-  useEffect(() => { load() }, []);
-  const submitted = id => subs.find(item => item.exam_id === id);
+ useEffect(() => { load() }, []);
+
+const publishedExamIds = new Set(
+  items.map(item => item.id)
+);
+
+const completedExamIds = new Set(
+  subs
+    .map(item => item.exam_id)
+    .filter(id => id && publishedExamIds.has(id))
+);
+
+const completedCount = completedExamIds.size;
+
+const pendingCount = Math.max(
+  items.length - completedCount,
+  0
+);
+
+const completionRate = items.length > 0
+  ? Math.round((completedCount / items.length) * 100)
+  : 0;
+
+const submitted = id =>
+  subs.find(item => item.exam_id === id);
   const open = exam => {
     const previous = submitted(exam.id);
     setActive(exam);
@@ -2210,7 +2845,7 @@ function StudentExams({ user }) {
     setSubmitting(true); setError('');
     try {
       const data = await post(`/exams/${active.id}/submit`, {
-        student: user.name, answers, solution_grading: gradingMode
+        answers, solution_grading: gradingMode
       });
       setResult(data); setShowConfirm(false); await load();
     } catch (err) { setError(err.message) } finally { setSubmitting(false) }
@@ -2242,23 +2877,40 @@ function StudentExams({ user }) {
     {/* 顶部统计卡片 */}
     <div className="exam-stats">
       <div className="exam-stat">
-        <span className="exam-stat-number">{items.length}</span>
-        <span className="exam-stat-label">总习题</span>
-      </div>
-      <div className="exam-stat">
-        <span className="exam-stat-number">{subs.length}</span>
-        <span className="exam-stat-label">已完成</span>
-      </div>
-      <div className="exam-stat">
-        <span className="exam-stat-number">
-          {items.length > 0 ? Math.round((subs.length / items.length) * 100) : 0}%
-        </span>
-        <span className="exam-stat-label">完成率</span>
-      </div>
-      <div className="exam-stat">
-        <span className="exam-stat-number">{items.length - subs.length}</span>
-        <span className="exam-stat-label">待练习</span>
-      </div>
+  <span className="exam-stat-number">
+    {items.length}
+  </span>
+  <span className="exam-stat-label">
+    总习题
+  </span>
+</div>
+
+<div className="exam-stat">
+  <span className="exam-stat-number">
+    {completedCount}
+  </span>
+  <span className="exam-stat-label">
+    已完成
+  </span>
+</div>
+
+<div className="exam-stat">
+  <span className="exam-stat-number">
+    {completionRate}%
+  </span>
+  <span className="exam-stat-label">
+    完成率
+  </span>
+</div>
+
+<div className="exam-stat">
+  <span className="exam-stat-number">
+    {pendingCount}
+  </span>
+  <span className="exam-stat-label">
+    待练习
+  </span>
+</div>
     </div>
     <div className="exercise-grid">{items.length === 0 ? <div className="empty-state">
       <img src={EmptyQuestions} alt="暂无习题" className="empty-illustration" />
@@ -2448,130 +3100,235 @@ function TeacherGrading() {
 }
 function Exams({user}){return user.role==='teacher'?<TeacherExams/>:<StudentExams user={user}/>}
 function Wrongbook({ user }) {
-  const [items, setItems] = useState([]);
+    // 统一知识点格式，清除不可见字符、异常空格和全角字符差异
+  const normalizeKnowledgePoint = value => {
+    return String(value ?? '')
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
+  // 用于比较知识点是否相同
+  const canonicalKnowledgePoint = value => {
+    return normalizeKnowledgePoint(value).toLocaleLowerCase('zh-CN');
+  };
+
+  // 清理重复或无效的知识点
+  const uniqueKnowledgePoints = values => {
+    const seen = new Set();
+
+    return (Array.isArray(values) ? values : [])
+      .map(normalizeKnowledgePoint)
+      .filter(topic => {
+        const key = canonicalKnowledgePoint(topic);
+
+        if (!key || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      });
+  };
+
+  const readKnowledgeFiltersFromUrl = () => {
+    const params = new URLSearchParams(location.search);
+
+    return uniqueKnowledgePoints(
+      params.getAll('knowledge')
+    );
+  };
+
+  const [items, setItems] = useState([]);
   const [mastery, setMastery] = useState([]);
 
-  // 当前选中的知识点筛选条件
+  // 支持从 URL 恢复多个知识点
   const [filters, setFilters] = useState(() => {
-    const params = new URLSearchParams(location.search);
-    return params.getAll('knowledge');
+    return readKnowledgeFiltersFromUrl();
   });
 
-  // 控制三个掌握度分类的展开与收起
   const [expandedMasteryGroups, setExpandedMasteryGroups] = useState({
-    weak: true,            // 薄弱知识点默认展开
-    consolidating: false,  // 待巩固默认折叠
-    mastered: false,       // 已掌握默认折叠
+    weak: true,
+    consolidating: false,
+    mastered: false,
   });
 
   const [loading, setLoading] = useState(true);
 
-  // 加载错题和学情数据
   const loadData = () => {
-  setLoading(true);
-  Promise.all([
-    request(`/exams/student/wrongbook?student=${encodeURIComponent(user.name)}`),
-    request(`/analysis/student?student=${encodeURIComponent(user.name)}`)
-  ]).then(([wrongRes, analysisRes]) => {
-    setItems(wrongRes.items || []);
-    setMastery(analysisRes.mastery || []);
-  }).catch(() => { })
-    .finally(() => setLoading(false));
-};
+    setLoading(true);
+
+    Promise.all([
+      request('/exams/student/wrongbook', { cache: false }),
+      request('/analysis/student', { cache: false }),
+    ])
+      .then(([wrongRes, analysisRes]) => {
+        setItems(wrongRes.items || []);
+        setMastery(analysisRes.mastery || []);
+      })
+      .catch(error => {
+        console.error('加载错题本失败：', error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
     loadData();
   }, [user.name]);
 
-  // 监听 URL 变化（popstate 和 pushState 触发）
+  // 对当前选择进行清理和去重
+  const normalizedFilters = useMemo(() => {
+    return uniqueKnowledgePoints(filters);
+  }, [filters]);
+
+  // 当前已选知识点的标准化键
+  const selectedFilterKeys = useMemo(() => {
+    return new Set(
+      normalizedFilters.map(canonicalKnowledgePoint)
+    );
+  }, [normalizedFilters]);
+
+  // 浏览器前进、后退时，从 URL 恢复筛选
   useEffect(() => {
-    const onPop = () => {
-      const params = new URLSearchParams(location.search);
-      setFilters(params.getAll('knowledge'));
+    const onPopState = () => {
+      setFilters(readKnowledgeFiltersFromUrl());
     };
 
-    window.addEventListener('popstate', onPop);
+    window.addEventListener('popstate', onPopState);
 
     return () => {
-      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('popstate', onPopState);
     };
   }, []);
 
-  // 点击标签：更新 URL 并设置 filter
-  const handleTagClick = (topic) => {
+  // filters 改变后再同步 URL
+  // 筛选显示直接由 React 状态驱动，不再依赖刷新页面
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    normalizedFilters.forEach(topic => {
+      params.append('knowledge', topic);
+    });
+
+    const query = params.toString();
+
+    const nextUrl = query
+      ? `${location.pathname}?${query}`
+      : location.pathname;
+
+    const currentUrl =
+      `${location.pathname}${location.search}`;
+
+    if (currentUrl !== nextUrl) {
+      history.replaceState(null, '', nextUrl);
+    }
+  }, [normalizedFilters]);
+
+  // 点击知识点：已选择则取消，未选择则加入
+  const handleTagClick = topic => {
+    const normalizedTopic =
+      normalizeKnowledgePoint(topic);
+
+    // 清除全部筛选
+    if (!normalizedTopic) {
+      setFilters([]);
+      return;
+    }
+
+    const topicKey =
+      canonicalKnowledgePoint(normalizedTopic);
+
     setFilters(previous => {
-      // 点击“清除筛选”
-      if (!topic) {
-        history.pushState(null, '', '/student/wrongbook');
-        return [];
+      const current =
+        uniqueKnowledgePoints(previous);
+
+      const alreadySelected = current.some(item =>
+        canonicalKnowledgePoint(item) === topicKey
+      );
+
+      if (alreadySelected) {
+        return current.filter(item =>
+          canonicalKnowledgePoint(item) !== topicKey
+        );
       }
 
-      // 已选择则取消，未选择则添加
-      const next = previous.includes(topic)
-        ? previous.filter(item => item !== topic)
-        : [...previous, topic];
-
-      // 把多个知识点写入 URL
-      const params = new URLSearchParams();
-      next.forEach(item => params.append('knowledge', item));
-
-      const query = params.toString();
-      const url = query
-        ? `/student/wrongbook?${query}`
-        : '/student/wrongbook';
-
-      history.pushState(null, '', url);
-      return next;
+      return [
+        ...current,
+        normalizedTopic,
+      ];
     });
   };
 
-  // 过滤错题：未选择时显示全部，选择多个时显示任一知识点对应的错题
-  const getQuestionKnowledgePoints = (question) => {
-    if (Array.isArray(question.knowledge_points)) {
-      return question.knowledge_points;
-    }
+  // 兼容新旧错题知识点字段
+  const getQuestionKnowledgePoints = question => {
+    const rawPoints = Array.isArray(question.knowledge_points)
+      ? question.knowledge_points
+      : question.knowledge_point
+        ? [question.knowledge_point]
+        : [];
 
-    // 兼容旧错题
-    if (question.knowledge_point) {
-      return [question.knowledge_point];
-    }
-
-    return [];
+    return uniqueKnowledgePoints(rawPoints);
   };
 
-  const filteredItems = filters.length > 0
+  const isKnowledgeFilterActive = topic => {
+    return selectedFilterKeys.has(
+      canonicalKnowledgePoint(topic)
+    );
+  };
+
+  // 多选使用“任意一个知识点匹配”的方式
+  const filteredItems = selectedFilterKeys.size > 0
     ? items.filter(question => {
-      const questionPoints = getQuestionKnowledgePoints(question);
+        const questionPoints =
+          getQuestionKnowledgePoints(question);
 
-      // 只要题目包含任意一个已选知识点，就显示
-      return filters.some(filterPoint =>
-        questionPoints.includes(filterPoint)
-      );
-    })
+        return questionPoints.some(questionPoint =>
+          selectedFilterKeys.has(
+            canonicalKnowledgePoint(questionPoint)
+          )
+        );
+      })
     : items;
-
-  const knowledgePointTags = useMemo(() => {
+    const knowledgePointTags = useMemo(() => {
     const topicMap = new Map();
 
     // 先加入掌握度中的知识点
     mastery.forEach(item => {
-      topicMap.set(item.topic, {
-        topic: item.topic,
+      const topic =
+        normalizeKnowledgePoint(item.topic);
+
+      const key =
+        canonicalKnowledgePoint(topic);
+
+      if (!key) {
+        return;
+      }
+
+      topicMap.set(key, {
+        topic,
         score: item.score,
       });
     });
 
-    // 再加入错题中的全部知识点
+    // 再加入错题中真实存在的知识点
     items.forEach(question => {
-      getQuestionKnowledgePoints(question).forEach(point => {
-        if (!topicMap.has(point)) {
-          topicMap.set(point, {
+      getQuestionKnowledgePoints(question)
+        .forEach(point => {
+          const key =
+            canonicalKnowledgePoint(point);
+
+          if (!key || topicMap.has(key)) {
+            return;
+          }
+
+          topicMap.set(key, {
             topic: point,
             score: null,
           });
-        }
-      });
+        });
     });
 
     return Array.from(topicMap.values());
@@ -2628,16 +3385,16 @@ const toggleMasteryGroup = (groupName) => {
     <div className="mastery-filter-header">
       <div>
         <h3>知识点掌握度</h3>
-        <p>点击知识点可以筛选对应错题，支持多选</p>
+       <p>点击知识点可以筛选对应错题，再次点击可取消筛选</p>
       </div>
 
       {/* 有筛选条件时显示清除按钮 */}
-      {filters.length > 0 && (
+      {normalizedFilters.length > 0 && (
         <button
           className="mastery-clear-button"
           onClick={() => handleTagClick('')}
         >
-          清除筛选（{filters.length}）
+          清除筛选（{normalizedFilters.length}）
         </button>
       )}
     </div>
@@ -2679,7 +3436,11 @@ const toggleMasteryGroup = (groupName) => {
                 key={item.topic}
                 className={
                   'mastery-tag weak ' +
-                  (filters.includes(item.topic) ? 'selected' : '')
+                  (
+  isKnowledgeFilterActive(item.topic)
+    ? 'selected'
+    : ''
+)
                 }
                 onClick={() => handleTagClick(item.topic)}
               >
@@ -2739,7 +3500,11 @@ const toggleMasteryGroup = (groupName) => {
                 key={item.topic}
                 className={
                   'mastery-tag consolidating ' +
-                  (filters.includes(item.topic) ? 'selected' : '')
+                  (
+ isKnowledgeFilterActive(item.topic)
+    ? 'selected'
+    : ''
+)
                 }
                 onClick={() => handleTagClick(item.topic)}
               >
@@ -2794,7 +3559,11 @@ const toggleMasteryGroup = (groupName) => {
                 key={item.topic}
                 className={
                   'mastery-tag mastered ' +
-                  (filters.includes(item.topic) ? 'selected' : '')
+                  (
+ isKnowledgeFilterActive(item.topic)
+    ? 'selected'
+    : ''
+)
                 }
                 onClick={() => handleTagClick(item.topic)}
               >
@@ -2821,12 +3590,26 @@ const toggleMasteryGroup = (groupName) => {
         ) : filteredItems.length === 0 ? (
           <div className="empty-state">
             <img src={EmptyCelebration} alt="暂无错题" className="empty-illustration" />
-            <h3>{filters.length > 0 ? '该知识点暂无错题' : '暂无错题'}</h3>
-            <p>{filters.length > 0 ? '换个知识点看看吧！' : '继续保持，再接再厉！'}</p>
+            <h3>
+  {normalizedFilters.length > 0
+    ? '所选知识点暂无错题'
+    : '暂无错题'}
+</h3>
+
+<p>
+  {normalizedFilters.length > 0
+    ? '可以取消部分筛选条件后再查看'
+    : '继续保持，再接再厉！'}
+</p>
           </div>
         ) : (
           filteredItems.map((q, i) => (
-            <article className="panel wrong-item" key={q.exam_id + q.id}>
+            <article
+  className="panel wrong-item"
+  key={
+    `${q.submission_id || q.submitted_at}-${q.exam_id}-${q.id}`
+  }
+>
               <div className="wrong-meta">
                 <span>{q.exam_title}</span>
               </div>
@@ -2857,17 +3640,55 @@ const toggleMasteryGroup = (groupName) => {
   );
 }
 function App() {
-  const isLoginPage = location.pathname === '/login';
-  const [user, setUser] = useState(() => {
-    if (isLoginPage) return null;
-    try { return JSON.parse(localStorage.getItem('mainrag-user')); } catch { return null; }
-  });
+  const [user, setUser] = useState(() => readStoredUser());
+  const [checkingSession, setCheckingSession] = useState(() => Boolean(readAccessToken()));
+
   useEffect(() => {
-    if (!user && location.pathname !== '/login') history.replaceState({}, '', '/login');
-  }, [user]);
+    const token = readAccessToken();
+    if (!token) {
+      clearAuthSession();
+      setUser(null);
+      setCheckingSession(false);
+      if (location.pathname !== '/login') history.replaceState({}, '', '/login');
+      return;
+    }
+
+    request('/me', { cache: false })
+      .then(currentUser => {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
+        setUser(currentUser);
+        if (location.pathname === '/login') {
+          history.replaceState({}, '', `/${currentUser.role}/home`);
+        }
+      })
+      .catch(() => {
+        clearAuthSession();
+        setUser(null);
+        if (location.pathname !== '/login') history.replaceState({}, '', '/login');
+      })
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  const isLoginPage = location.pathname === '/login';
+  const logout = () => {
+    clearAuthSession();
+    history.replaceState({}, '', '/login');
+    setUser(null);
+  };
+
+  if (checkingSession) {
+    return (
+      <ToastProvider>
+        <div className="session-checking">正在验证登录状态…</div>
+      </ToastProvider>
+    );
+  }
+
   return (
     <ToastProvider>
-      {user && !isLoginPage ? <Shell user={user} onLogout={() => { localStorage.removeItem('mainrag-user'); history.replaceState({}, '', '/login'); setUser(null); }} /> : <Login onLogin={setUser} />}
+      {user && !isLoginPage
+        ? <Shell user={user} onLogout={logout} />
+        : <Login onLogin={setUser} />}
     </ToastProvider>
   );
 }

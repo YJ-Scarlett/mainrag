@@ -1,5 +1,9 @@
-from fastapi import APIRouter, Header, HTTPException
+from typing import Annotated
 
+from fastapi import APIRouter, Depends
+
+from core.security import require_student
+from db.models import User
 from schemas.reinforcement import (
     ReinforcementCheckRequest,
     ReinforcementGenerateRequest,
@@ -9,25 +13,14 @@ from services.reinforcement_service import (
     generate_reinforcement,
 )
 
-
 router = APIRouter()
-
-
-def _require_student(x_role: str) -> None:
-    if x_role != "student":
-        raise HTTPException(
-            403,
-            "仅学生可以使用专项巩固练习。",
-        )
 
 
 @router.post("/generate")
 async def generate(
     body: ReinforcementGenerateRequest,
-    x_role: str = Header("", alias="X-Role"),
+    _: Annotated[User, Depends(require_student)],
 ):
-    _require_student(x_role)
-
     return await generate_reinforcement(
         body.knowledge_point,
         body.count,
@@ -37,10 +30,8 @@ async def generate(
 @router.post("/check")
 def check(
     body: ReinforcementCheckRequest,
-    x_role: str = Header("", alias="X-Role"),
+    _: Annotated[User, Depends(require_student)],
 ):
-    _require_student(x_role)
-
     return check_reinforcement_answer(
         body.session_id,
         body.question_id,

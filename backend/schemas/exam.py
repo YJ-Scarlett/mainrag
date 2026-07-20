@@ -15,7 +15,8 @@ class PublishExamRequest(BaseModel):
 
 
 class SubmitExamRequest(BaseModel):
-    student: str = "张同学"
+    # student 字段仅为旧前端兼容；后端始终使用 JWT 中的当前学生。
+    student: str | None = None
     answers: dict[str, str]
     solution_grading: str = "ai"
 

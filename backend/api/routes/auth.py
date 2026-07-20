@@ -1,97 +1,78 @@
-from fastapi import APIRouter, HTTPException
-from schemas.auth import LoginRequest
-from pydantic import BaseModel
-import hashlib
-import json
-from pathlib import Path
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from core.config import settings
+from core.security import create_access_token, get_current_user, require_teacher
+from db.database import get_db
+from db.models import User
+from schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserPublic
+from services.user_service import (
+    authenticate_user,
+    create_user,
+    list_users,
+    user_to_public,
+)
 
 router = APIRouter()
 
-# ============ 数据存储路径 ============
-DATA_DIR = Path(__file__).parent.parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
-USER_FILE = DATA_DIR / "users.json"
 
-# ============ 用户数据操作 ============
-def hash_password(pwd: str) -> str:
-    return hashlib.sha256(pwd.encode()).hexdigest()
-
-def load_users():
-    if not USER_FILE.exists():
-        default_users = [
-            {"username": "teacher", "password": hash_password("123456"), "name": "陈老师", "role": "teacher"},
-            {"username": "student", "password": hash_password("123456"), "name": "张同学", "role": "student"},
-        ]
-        save_users(default_users)
-        return default_users
-    with open(USER_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_users(users):
-    with open(USER_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
-# ============ 请求模型 ============
-class RegisterRequest(BaseModel):
-    name: str          # 真实姓名（显示名称）
-    password: str
-    role: str          # "student" 或 "teacher"
-
-# ============ 登录接口 ============
-@router.post("/login", tags=["认证"])
-def login(body: LoginRequest):
-    users = load_users()
-    user = next((u for u in users if u["username"] == body.username), None)
+@router.post("/login", response_model=TokenResponse, tags=["认证"])
+def login(
+    body: LoginRequest,
+    db: Annotated[Session, Depends(get_db)],
+):
+    user = authenticate_user(
+        db,
+        username=body.username,
+        password=body.password,
+        role=body.role,
+    )
     if not user:
-        raise HTTPException(401, "账号或密码错误")
-    if user["password"] != hash_password(body.password):
-        raise HTTPException(401, "账号或密码错误")
-    if user["role"] != body.role:
-        raise HTTPException(401, "角色不匹配，请检查身份选择")
+        raise HTTPException(401, "账号、密码或身份选择不正确")
+
     return {
-        "token": f"demo-{body.role}",
-        "user": {
-            "name": user["name"],
-            "role": user["role"],
-            "username": user["username"]
-        }
+        "access_token": create_access_token(user),
+        "token_type": "bearer",
+        "user": user_to_public(user),
     }
 
-# ============ 注册接口（修改后）============
+
 @router.post("/register", tags=["认证"])
-def register(body: RegisterRequest):
-    users = load_users()
-    
-    # 根据角色生成 username
-    prefix = "s_" if body.role == "student" else "t_"
-    base_username = f"{prefix}{body.name}"
-    
-    # 处理重名
-    username = base_username
-    counter = 1
-    while any(u["username"] == username for u in users):
-        username = f"{base_username}{counter}"
-        counter += 1
-    
-    new_user = {
-        "username": username,
-        "password": hash_password(body.password),
-        "name": body.name,
-        "role": body.role
-    }
-    users.append(new_user)
-    save_users(users)
+def register(
+    body: RegisterRequest,
+    db: Annotated[Session, Depends(get_db)],
+):
+    if (
+        body.role == "teacher"
+        and settings.teacher_invite_code
+        and body.teacher_invite_code.strip() != settings.teacher_invite_code
+    ):
+        raise HTTPException(403, "教师邀请码不正确")
+
+    user = create_user(
+        db,
+        name=body.name,
+        password=body.password,
+        role=body.role,
+    )
     return {
         "message": "注册成功",
-        "user": {
-            "username": username,
-            "name": body.name,
-            "role": body.role
-        }
+        "user": user_to_public(user),
     }
 
-# ============ （可选）查看所有用户（调试用）============
+
+@router.get("/me", response_model=UserPublic, tags=["认证"])
+def me(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    return current_user
+
+
 @router.get("/users", tags=["认证"])
-def list_users():
-    users = load_users()
-    return [{"username": u["username"], "name": u["name"], "role": u["role"]} for u in users]
+def get_users(
+    _: Annotated[User, Depends(require_teacher)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    return {"items": [user_to_public(user) for user in list_users(db)]}
