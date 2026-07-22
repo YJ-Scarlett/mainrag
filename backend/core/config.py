@@ -13,9 +13,10 @@ class Settings:
     data_dir: Path = BACKEND_DIR / "data"
     upload_dir: Path = BACKEND_DIR / "uploads"
 
-    # 现有业务数据仍保存在 store.json；第一阶段只把账号迁移到 SQLite。
+    # SQLite 保存账号、班级以及系统业务数据；store.json 仅作为旧数据迁移来源保留。
     database_file: Path = BACKEND_DIR / "data" / "store.json"
     auth_database_file: Path = BACKEND_DIR / "data" / "mainrag.sqlite3"
+    business_database_file: Path = BACKEND_DIR / "data" / "mainrag.sqlite3"
     legacy_user_file: Path = BACKEND_DIR / "api" / "data" / "users.json"
     backup_dir: Path = BACKEND_DIR / "data" / "backups"
     migration_report_file: Path = BACKEND_DIR / "data" / "migration_report.json"

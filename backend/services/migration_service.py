@@ -47,14 +47,8 @@ def _resolve_user_id(value: object, alias_to_id: dict[str, str]) -> str | None:
 
 
 def migrate_store_identity_fields(db: Session) -> dict:
-    path = settings.database_file
-    if not path.exists():
-        data = store.load()
-    else:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise RuntimeError(f"业务数据文件读取失败：{path}") from exc
+    path = settings.business_database_file
+    data = store.load()
 
     users = list_users(db)
     alias_to_id, user_by_id = _identity_maps(users)
@@ -126,8 +120,8 @@ def migrate_store_identity_fields(db: Session) -> dict:
                 updated_counts["exams"] += 1
 
     if changed:
-        _backup_once(path, "store.before_identity_v1.json")
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _backup_once(settings.database_file, "store.before_identity_v1.json")
+        store.save(data)
 
     return {
         "source": str(path),
