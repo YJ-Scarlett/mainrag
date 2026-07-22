@@ -621,3 +621,72 @@
 @media(max-width:900px){.classroom-head{align-items:flex-start;flex-direction:column}.classroom-create-form{width:100%}.classroom-create-form input{flex:1;width:auto}.classroom-layout{grid-template-columns:1fr}.classroom-list-panel{position:static}.classroom-list{grid-template-columns:repeat(2,1fr)}.student-join-layout{grid-template-columns:1fr}}
 @media(max-width:650px){.classroom-head{padding:22px}.classroom-create-form,.classroom-add-form,.student-join-card form{flex-direction:column;align-items:stretch}.classroom-create-form input,.student-join-card input{width:100%}.classroom-list{grid-template-columns:1fr}.classroom-summary-title,.student-class-card{align-items:flex-start;flex-direction:column}.classroom-stats{grid-template-columns:1fr}.classroom-member-grid{grid-template-columns:1fr}.student-class-counts{width:100%}.student-class-counts>span{flex:1}.student-teacher-grid{grid-template-columns:1fr}.classroom-request-row{align-items:flex-start;flex-wrap:wrap}.classroom-request-actions{width:100%;justify-content:flex-end}}
 
+/* 教师端班级学情选择器 */
+.analysis-class-selector {
+  position: relative;
+  z-index: 2;
+  min-width: 260px;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e1e7f2;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(49, 66, 105, 0.08);
+}
+
+.analysis-class-selector label {
+  display: block;
+  margin-bottom: 7px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.analysis-class-selector select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 36px 0 12px;
+  color: #263044;
+  background: #f8faff;
+  border: 1px solid #dfe5f0;
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+}
+
+.analysis-class-selector select:focus {
+  border-color: #6179e8;
+  box-shadow: 0 0 0 3px rgba(97, 121, 232, 0.12);
+}
+
+.analysis-class-selector select:disabled {
+  color: #9aa3b2;
+  cursor: not-allowed;
+}
+
+.analysis-class-selector small {
+  display: block;
+  margin-top: 7px;
+  color: #929aaa;
+  font-size: 10px;
+}
+
+.analysis-student-empty {
+  justify-content: center;
+  padding: 28px 16px !important;
+  color: #929aaa;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .analysis-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .analysis-class-selector {
+    width: 100%;
+    min-width: 0;
+  }
+}

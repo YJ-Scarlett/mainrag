@@ -390,7 +390,11 @@ function Shell({ user, onLogout }) {
     </header>
     <ErrorBoundary resetKey={page}>
       <div className="content">
-        {page === 'dashboard' ? <Dashboard user={user} go={setPage} /> : page === 'classes' ? <ClassroomPage user={user} /> : page === 'chat' ? <Chat user={user} /> : page === 'knowledge' ? <Knowledge user={user} /> : page === 'exams' ? <Exams user={user} /> : page === 'grading' ? <TeacherGrading /> : page === 'wrongbook' ? <Wrongbook user={user} /> : <Analysis role={user.role} />}
+        {page === 'dashboard' ? <Dashboard user={user} go={setPage} /> : page === 'classes' ? <ClassroomPage user={user} /> : page === 'chat' ? <Chat user={user} /> : page === 'knowledge' ? <Knowledge user={user} /> : page === 'exams' ? <Exams user={user} /> : page === 'grading' ? <TeacherGrading /> : page === 'wrongbook' ? <Wrongbook user={user} /> : <Analysis
+  key={`analysis:${user.id}`}
+  role={user.role}
+  userId={user.id}
+/>}
       </div>
     </ErrorBoundary></main></div>
 }
@@ -2241,11 +2245,19 @@ function ReinforcementPractice({
     </section>
   );
 }
-function Analysis({ role }) {
+function Analysis({ role, userId }) {
   const [data, setData] = useState(null);
   const [masteryFilter, setMasteryFilter] = useState('all');
   const [hoveredTopic, setHoveredTopic] = useState('');
-const [practiceTopic, setPracticeTopic] = useState('');
+
+  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [activeClassId, setActiveClassId] = useState('');
+const [classesLoaded, setClassesLoaded] = useState(
+    role !== 'teacher'
+  );
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
+  const [practiceTopic, setPracticeTopic] = useState('');
 const analysisScrollRef = useRef(0);
 const openReinforcement = (topic) => {
   if (role !== 'student') return;
@@ -2271,23 +2283,161 @@ const closeReinforcement = () => {
     });
   });
 };
-  useEffect(() => {
-    const url = role === 'teacher'
-      ? '/analysis/class'
-      : '/analysis/student';
+    useEffect(() => {
+  let cancelled = false;
 
-    request(url)
-      .then(setData)
-      .catch(() =>
-        setData({
-          summary: {},
-          mastery: [],
-          trend: [],
-          students: [],
-          suggestion: '学情数据暂时无法加载，请稍后再试。'
-        })
+  // 学生端不需要读取教师班级列表
+  if (role !== 'teacher') {
+    setTeacherClasses([]);
+    setActiveClassId('');
+    setClassesLoaded(true);
+
+    return () => {
+      cancelled = true;
+    };
+  }
+
+  setClassesLoaded(false);
+  setAnalysisError('');
+
+  request('/classes', {
+    cache: false,
+  })
+    .then(result => {
+      if (cancelled) return;
+
+      const items = Array.isArray(result?.items)
+        ? result.items
+        : [];
+
+      console.log('教师班级列表：', items);
+
+      setTeacherClasses(items);
+
+      setActiveClassId(previous => {
+        const previousStillExists = items.some(
+          item => item.id === previous
+        );
+
+        if (previousStillExists) {
+          return previous;
+        }
+
+        return items[0]?.id || '';
+      });
+    })
+    .catch(error => {
+      if (cancelled) return;
+
+      console.error('班级列表加载失败：', error);
+
+      setTeacherClasses([]);
+      setActiveClassId('');
+      setAnalysisError(
+        `班级列表加载失败：${error.message || '未知错误'}`
       );
-  }, [role]);
+    })
+    .finally(() => {
+      if (!cancelled) {
+        setClassesLoaded(true);
+      }
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [role, userId]);
+
+    useEffect(() => {
+  let cancelled = false;
+
+  // 教师端必须等班级列表加载完成
+  if (role === 'teacher' && !classesLoaded) {
+    return () => {
+      cancelled = true;
+    };
+  }
+
+  // 教师没有任何班级
+  if (role === 'teacher' && !activeClassId) {
+    setData({
+      summary: {
+        average: 0,
+        activities: 0,
+        questions: 0,
+        documents: 0,
+        exams: 0,
+      },
+      mastery: [],
+      trend: [],
+      students: [],
+      suggestion: '当前没有可分析的班级。',
+      classroom: null,
+    });
+
+    setAnalysisLoading(false);
+
+    return () => {
+      cancelled = true;
+    };
+  }
+
+  const url = role === 'teacher'
+    ? `/analysis/class?class_id=${encodeURIComponent(
+        activeClassId
+      )}`
+    : '/analysis/student';
+
+  console.log('准备请求学情接口：', url);
+
+  setAnalysisLoading(true);
+  setAnalysisError('');
+  setMasteryFilter('all');
+
+  request(url, {
+    cache: false,
+  })
+    .then(result => {
+      if (cancelled) return;
+
+      console.log('学情接口返回：', result);
+
+      if (
+        !result ||
+        typeof result !== 'object' ||
+        !result.summary
+      ) {
+        throw new Error('学情接口返回格式不正确');
+      }
+
+      setData(result);
+    })
+    .catch(error => {
+      if (cancelled) return;
+
+      console.error('学情加载失败：', error);
+
+      // 请求失败时不再伪装成正常的全 0 数据
+      setData(null);
+      setAnalysisError(
+        `学情加载失败：${error.message || '未知错误'}`
+      );
+    })
+    .finally(() => {
+      if (!cancelled) {
+        setAnalysisLoading(false);
+      }
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  role,
+  userId,
+  classesLoaded,
+  activeClassId,
+]);
 
   const mastery = data?.mastery || [];
   const summary = data?.summary || {};
@@ -2484,13 +2634,76 @@ if (practiceTopic && role === 'student') {
   );
 }
   return <>
-    <section className="analysis-title">
-      <div>
-        <span className="eyebrow"><ChartNoAxesCombined size={15}/>{role==='teacher'?'班级数据洞察':'个性化学习报告'}</span>
-        <h1>{role==='teacher'?'班级学情分析':'我的学情分析'}</h1>
-        <p>{role==='teacher'?'基于学习记录与问答行为，快速掌握班级学习状态。':'看见自己的进步，也找到下一步努力的方向。'}</p>
-      </div>
-    </section>
+   <section className="analysis-title">
+  <div>
+    <span className="eyebrow">
+      <ChartNoAxesCombined size={15}/>
+      {role === 'teacher' ? '班级数据洞察' : '个性化学习报告'}
+    </span>
+
+    <h1>
+      {role === 'teacher' ? '班级学情分析' : '我的学情分析'}
+    </h1>
+
+    <p>
+      {role === 'teacher'
+        ? '基于当前班级学生的学习记录与问答行为，快速掌握班级学习状态。'
+        : '看见自己的进步，也找到下一步努力的方向。'}
+    </p>
+  </div>
+
+  {role === 'teacher' && (
+    <div className="analysis-class-selector">
+      <label htmlFor="analysis-class-select">
+        当前分析班级
+      </label>
+
+      <select
+  id="analysis-class-select"
+  value={activeClassId}
+  onChange={event => {
+    const nextClassId = event.target.value;
+
+    console.log('切换学情班级：', nextClassId);
+
+    setActiveClassId(nextClassId);
+  }}
+  disabled={
+    !classesLoaded ||
+    teacherClasses.length === 0
+  }
+>
+  <option value="" disabled>
+    请选择班级
+  </option>
+
+  {teacherClasses.map(item => (
+    <option key={item.id} value={item.id}>
+      {item.name}
+      {item.current_teacher_role === 'owner'
+        ? '（负责人）'
+        : '（任课教师）'}
+    </option>
+  ))}
+</select>
+
+      <small>
+        仅统计所选班级中的学生数据
+      </small>
+    </div>
+  )}
+</section>
+    {analysisLoading && (
+  <div className="notice">
+    正在加载当前班级学情…
+  </div>
+)}
+
+{analysisError && (
+  <div className="error">
+    {analysisError}
+  </div>
+)}
     <div className="stats">
       <Stat icon={ChartNoAxesCombined} label="平均掌握度" value={(summary.average||0)+'%'} detail="综合学习活动" tone="blue"/>
       <Stat icon={BookOpen} label="学习活动" value={summary.activities||0} detail="已纳入分析" tone="green"/>
@@ -2737,10 +2950,42 @@ if (practiceTopic && role === 'student') {
 </div>      </section>
     </div>
     {role==='teacher'&&<section className="panel student-panel">
-      <div className="panel-head"><div><h3>学生概览</h3><p>班级个体学习状态</p></div></div>
+     <div className="panel-head">
+  <div>
+    <h3>学生概览</h3>
+    <p>
+      {data?.classroom?.name
+        ? `${data.classroom.name} · 个体学习状态`
+        : '班级个体学习状态'}
+    </p>
+  </div>
+</div>
       <div className="student-list">
-        {students.map((s,i)=><div key={s.name||i}><span className="student-avatar">{(s.name||'学')[0]}</span><b>{s.name||'学生'}<small>{s.activities||0} 次学习活动</small></b><div className="mini-progress"><i style={{width:(s.average||0)+'%'}}/></div><em>{s.average||0}%</em></div>)}
+  {students.map((s, i) => (
+    <div key={s.id || s.name || i}>
+      <span className="student-avatar">
+        {(s.name || '学')[0]}
+      </span>
+
+      <b>
+        {s.name || '学生'}
+        <small>{s.activities || 0} 次学习活动</small>
+      </b>
+
+      <div className="mini-progress">
+        <i style={{ width: `${s.average || 0}%` }}/>
       </div>
+
+      <em>{s.average || 0}%</em>
+    </div>
+  ))}
+
+  {students.length === 0 && (
+    <div className="analysis-student-empty">
+      当前班级暂无学生或暂无学习记录
+    </div>
+  )}
+</div>
     </section>}
   </>;
 }

@@ -1,5 +1,12 @@
+from sqlalchemy.orm import Session
+
 from db.models import User
-from services.identity_service import record_belongs_to_user, user_aliases
+from services.classroom_service import (
+    list_class_students,
+    list_teacher_classrooms,
+    require_class_teacher,
+)
+from services.identity_service import user_aliases
 from storage.json_store import store
 
 
@@ -11,14 +18,36 @@ def _matches_identity(
     aliases: set[str] | None = None,
     id_fields: tuple[str, ...] = ("student_id", "user_id"),
 ) -> bool:
+    """
+    匹配单个学生。
+
+    这里恢复原来的单学生匹配逻辑，不再接收 student_ids。
+    学生端和单个学生概览都使用这个函数。
+    """
     if student_id:
+        found_identity_field = False
+
         for field in id_fields:
-            if item.get(field):
-                return str(item.get(field)) == student_id
+            value = item.get(field)
+
+            if value:
+                found_identity_field = True
+
+                if str(value).strip() == student_id:
+                    return True
+
+        # 记录已经存在稳定 ID，但与当前学生不一致时，
+        # 不能继续通过姓名误匹配到其他学生。
+        if found_identity_field:
+            return False
+
     if aliases:
-        return str(item.get("student", "")) in aliases
+        legacy_value = str(item.get("student", "")).strip()
+        return legacy_value in aliases
+
     if student:
-        return str(item.get("student", "")) == student
+        return str(item.get("student", "")).strip() == student
+
     return True
 
 
@@ -28,10 +57,16 @@ def build_analysis(
     student_id: str | None = None,
     aliases: set[str] | None = None,
 ) -> dict:
+    """
+    生成单个学生的学情。
+
+    不包含任何班级筛选逻辑，避免教师端改动影响学生端。
+    """
     data = store.load()
+
     activities = [
         item
-        for item in data["activities"]
+        for item in data.get("activities", [])
         if _matches_identity(
             item,
             student=student,
@@ -42,18 +77,24 @@ def build_analysis(
     ]
 
     topics: dict[str, list[int]] = {}
+
     for item in activities:
-        topics.setdefault(item["topic"], []).append(item["score"])
+        topic = str(item.get("topic") or "综合知识").strip()
+        score = int(item.get("score") or 0)
+        topics.setdefault(topic, []).append(score)
 
     average = (
-        round(sum(item["score"] for item in activities) / len(activities))
+        round(
+            sum(int(item.get("score") or 0) for item in activities)
+            / len(activities)
+        )
         if activities
         else 0
     )
 
     questions = [
         item
-        for item in data["questions"]
+        for item in data.get("questions", [])
         if _matches_identity(
             item,
             student=student,
@@ -65,7 +106,7 @@ def build_analysis(
 
     submissions = [
         item
-        for item in data["submissions"]
+        for item in data.get("submissions", [])
         if _matches_identity(
             item,
             student=student,
@@ -77,24 +118,31 @@ def build_analysis(
     ]
 
     exam_topics: dict[str, list[int]] = {}
+
     for submission in submissions:
-        for detail in submission["details"]:
+        for detail in submission.get("details", []):
             if detail.get("grading_status", "graded") != "graded":
                 continue
 
             knowledge_points = detail.get("knowledge_points")
+
             if not knowledge_points:
-                knowledge_points = [detail.get("knowledge_point", "综合知识")]
+                knowledge_points = [
+                    detail.get("knowledge_point", "综合知识")
+                ]
+
             if isinstance(knowledge_points, str):
                 knowledge_points = [knowledge_points]
 
-            knowledge_points = {
+            clean_points = {
                 str(point).strip()
                 for point in knowledge_points
                 if str(point).strip()
             }
+
             score = 100 if detail.get("correct") else 0
-            for topic in knowledge_points:
+
+            for topic in clean_points:
                 exam_topics.setdefault(topic, []).append(score)
 
     for topic, scores in exam_topics.items():
@@ -102,8 +150,12 @@ def build_analysis(
 
     mastery = sorted(
         (
-            {"topic": topic, "score": round(sum(scores) / len(scores))}
+            {
+                "topic": topic,
+                "score": round(sum(scores) / len(scores)),
+            }
             for topic, scores in topics.items()
+            if scores
         ),
         key=lambda item: item["score"],
     )
@@ -113,39 +165,46 @@ def build_analysis(
         for item in submissions
         if item.get("accuracy") is not None
     ]
+
     if graded_accuracies:
-        average = round(sum(graded_accuracies) / len(graded_accuracies))
+        average = round(
+            sum(float(value) for value in graded_accuracies)
+            / len(graded_accuracies)
+        )
+
+    activity_trend = [
+        {
+            "date": item.get("at", ""),
+            "score": int(item.get("score") or 0),
+            "topic": item.get("topic") or "综合知识",
+        }
+        for item in activities
+    ]
+
+    submission_trend = [
+        {
+            "date": str(item.get("submitted_at") or "")[:10],
+            "score": float(item.get("accuracy") or 0),
+            "topic": item.get("exam_title") or "练习",
+        }
+        for item in submissions
+        if item.get("accuracy") is not None
+    ]
 
     return {
         "summary": {
             "average": average,
             "activities": len(activities) + len(submissions),
             "questions": len(questions),
-            "documents": len(data["documents"]),
+            # 课程资料仍然是全平台共享资源。
+            "documents": len(data.get("documents", [])),
             "exams": len(submissions),
         },
         "mastery": mastery,
-        "trend": (
-            [
-                {
-                    "date": item["at"],
-                    "score": item["score"],
-                    "topic": item["topic"],
-                }
-                for item in activities
-            ]
-            + [
-                {
-                    "date": item["submitted_at"][:10],
-                    "score": item["accuracy"],
-                    "topic": item["exam_title"],
-                }
-                for item in submissions
-                if item.get("accuracy") is not None
-            ]
-        ),
+        "trend": activity_trend + submission_trend,
         "suggestion": (
-            f"优先复习“{mastery[0]['topic']}”，结合知识库问答完成概念辨析。"
+            f"优先复习“{mastery[0]['topic']}”，"
+            "结合知识库问答完成概念辨析。"
             if mastery
             else "暂无足够学习记录。"
         ),
@@ -153,45 +212,209 @@ def build_analysis(
 
 
 def build_user_analysis(user: User) -> dict:
+    """
+    学生端只分析当前登录学生。
+    """
     return build_analysis(
         student_id=user.id,
         aliases=user_aliases(user),
     )
 
 
-def build_class_analysis() -> dict:
-    # 第一阶段只完成真实身份鉴权；班级过滤会在第二、三阶段接入。
-    payload = build_analysis()
-    data = store.load()
+def _member_aliases(member: dict) -> set[str]:
+    return {
+        str(value).strip()
+        for value in (
+            member.get("id"),
+            member.get("username"),
+            member.get("name"),
+        )
+        if str(value or "").strip()
+    }
 
-    identities: dict[str, dict] = {}
-    for item in [*data["activities"], *data["submissions"]]:
-        key = str(item.get("student_id") or item.get("student") or "").strip()
-        if not key:
-            continue
-        identities.setdefault(
-            key,
-            {
-                "student_id": item.get("student_id"),
-                "legacy": item.get("student"),
-                "name": item.get("student_name") or item.get("student") or key,
-            },
+
+def _empty_class_analysis(
+    *,
+    classroom: dict | None,
+    document_count: int,
+) -> dict:
+    return {
+        "summary": {
+            "average": 0,
+            "activities": 0,
+            "questions": 0,
+            "documents": document_count,
+            "exams": 0,
+        },
+        "mastery": [],
+        "trend": [],
+        "students": [],
+        "suggestion": "暂无足够学习记录。",
+        "classroom": classroom,
+    }
+
+
+def build_class_analysis(
+    db: Session,
+    teacher: User,
+    *,
+    class_id: str | None = None,
+) -> dict:
+    """
+    只聚合当前班级学生的学情。
+
+    不修改 build_analysis() 的学生身份匹配逻辑，
+    而是逐个调用稳定的单学生分析，再汇总为班级分析。
+    """
+    data = store.load()
+    document_count = len(data.get("documents", []))
+
+    # 教师首页仍可能不传 class_id。
+    # 此时使用该教师班级列表中的第一个班级。
+    if not class_id:
+        classrooms = list_teacher_classrooms(db, teacher)
+
+        if not classrooms:
+            return _empty_class_analysis(
+                classroom=None,
+                document_count=document_count,
+            )
+
+        class_id = classrooms[0]["id"]
+
+    # 验证当前教师属于该班级。
+    classroom_model, _ = require_class_teacher(
+        db,
+        class_id,
+        teacher,
+    )
+
+    classroom_public = {
+        "id": classroom_model.id,
+        "name": classroom_model.name,
+    }
+
+    # 只获取当前班级中的有效学生。
+    members = list_class_students(
+        db,
+        class_id,
+        teacher,
+    )
+
+    if not members:
+        return _empty_class_analysis(
+            classroom=classroom_public,
+            document_count=document_count,
         )
 
-    students = []
-    for identity in sorted(identities.values(), key=lambda item: str(item["name"])):
-        summary = build_analysis(
-            identity.get("legacy"),
-            student_id=identity.get("student_id"),
-            aliases={str(identity.get("legacy") or "")},
-        )["summary"]
+    students: list[dict] = []
+    combined_mastery: dict[str, list[float]] = {}
+    combined_trend: list[dict] = []
+
+    total_activities = 0
+    total_questions = 0
+    total_exams = 0
+
+    weighted_average_total = 0.0
+    weighted_average_count = 0
+
+    for member in members:
+        member_id = str(member.get("id") or "").strip()
+
+        if not member_id:
+            continue
+
+        analysis = build_analysis(
+            student_id=member_id,
+            aliases=_member_aliases(member),
+        )
+
+        summary = analysis.get("summary", {})
+        activity_count = int(summary.get("activities") or 0)
+        student_average = float(summary.get("average") or 0)
+
+        total_activities += activity_count
+        total_questions += int(summary.get("questions") or 0)
+        total_exams += int(summary.get("exams") or 0)
+
+        # 有学习活动的学生才参与班级平均分计算。
+        if activity_count > 0:
+            weighted_average_total += (
+                student_average * activity_count
+            )
+            weighted_average_count += activity_count
+
+        for item in analysis.get("mastery", []):
+            topic = str(item.get("topic") or "").strip()
+
+            if not topic:
+                continue
+
+            combined_mastery.setdefault(topic, []).append(
+                float(item.get("score") or 0)
+            )
+
+        combined_trend.extend(analysis.get("trend", []))
+
         students.append(
             {
-                "id": identity.get("student_id"),
-                "name": identity["name"],
-                **summary,
+                "id": member_id,
+                "username": member.get("username"),
+                "name": (
+                    member.get("name")
+                    or member.get("username")
+                    or "学生"
+                ),
+                "average": round(student_average),
+                "activities": activity_count,
+                "questions": int(summary.get("questions") or 0),
+                "documents": document_count,
+                "exams": int(summary.get("exams") or 0),
             }
         )
 
-    payload["students"] = students
-    return payload
+    mastery = sorted(
+        (
+            {
+                "topic": topic,
+                "score": round(sum(scores) / len(scores)),
+            }
+            for topic, scores in combined_mastery.items()
+            if scores
+        ),
+        key=lambda item: item["score"],
+    )
+
+    class_average = (
+        round(weighted_average_total / weighted_average_count)
+        if weighted_average_count
+        else 0
+    )
+
+    combined_trend.sort(
+        key=lambda item: str(item.get("date") or "")
+    )
+
+    students.sort(
+        key=lambda item: str(item.get("name") or "")
+    )
+
+    return {
+        "summary": {
+            "average": class_average,
+            "activities": total_activities,
+            "questions": total_questions,
+            "documents": document_count,
+            "exams": total_exams,
+        },
+        "mastery": mastery,
+        "trend": combined_trend,
+        "students": students,
+        "suggestion": (
+            f"建议优先巩固“{mastery[0]['topic']}”，"
+            "并关注掌握度较低的学生。"
+            if mastery
+            else "暂无足够学习记录。"
+        ),
+        "classroom": classroom_public,
+    }
